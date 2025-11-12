@@ -1,0 +1,13 @@
+# Ensure markdown files are treated as text
+*.md text
+
+# Common text files
+*.py text
+*.toml text
+*.yml text
+*.yaml text
+*.json text
+*.txt text
+
+# Line ending normalization
+* text=auto

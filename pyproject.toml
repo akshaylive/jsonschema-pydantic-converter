@@ -1,0 +1,101 @@
+[project]
+name = "jsonschema-to-pydantic"
+version = "0.0.1"
+description = "Convert JSON Schema definitions to Pydantic models dynamically at runtime"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "pydantic>=2.0.0",
+]
+keywords = ["json-schema", "pydantic", "validation", "schema", "conversion"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+maintainers = [
+  { name = "Akshaya Shanbhogue", email = "akshay.live@gmail.com" },
+]
+
+[project.urls]
+Homepage = "https://github.com/akshaylive/jsonschema-to-pydantic"
+Repository = "https://github.com/akshaylive/jsonschema-to-pydantic"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.14.1",
+  "ruff>=0.9.4",
+  "pytest>=7.4.0",
+  "pytest-cov>=4.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jsonschema_to_pydantic"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "D"]
+ignore = ["D417"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = []
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+"docs/**" = ["D"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q --cov"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+source = ["src"]
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
