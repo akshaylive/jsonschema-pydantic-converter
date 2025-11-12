@@ -65,7 +65,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'testpypi'
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/jsonschema-to-pydantic/
+      url: https://test.pypi.org/project/jsonschema-pydantic-converter/
     permissions:
       id-token: write
     steps:
@@ -86,7 +86,7 @@ jobs:
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'pypi')
     environment:
       name: pypi
-      url: https://pypi.org/project/jsonschema-to-pydantic/
+      url: https://pypi.org/project/jsonschema-pydantic-converter/
     permissions:
       id-token: write
     steps:

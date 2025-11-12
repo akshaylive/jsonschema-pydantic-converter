@@ -1,5 +1,5 @@
 [project]
-name = "jsonschema-to-pydantic"
+name = "jsonschema-pydantic-converter"
 version = "0.0.1"
 description = "Convert JSON Schema definitions to Pydantic models dynamically at runtime"
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -25,8 +25,8 @@ maintainers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/akshaylive/jsonschema-to-pydantic"
-Repository = "https://github.com/akshaylive/jsonschema-to-pydantic"
+Homepage = "https://github.com/akshaylive/jsonschema-pydantic-converter"
+Repository = "https://github.com/akshaylive/jsonschema-pydantic-converter"
 
 [build-system]
 requires = ["hatchling"]
@@ -41,7 +41,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/jsonschema_to_pydantic"]
+packages = ["src/jsonschema_pydantic_converter"]
 
 [tool.ruff]
 line-length = 88

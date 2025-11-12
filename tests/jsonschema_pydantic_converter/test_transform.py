@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from jsonschema_to_pydantic import transform
+from jsonschema_pydantic_converter import transform
 
 
 def test_dynamic_schema():

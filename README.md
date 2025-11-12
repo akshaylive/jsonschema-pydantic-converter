@@ -1,15 +1,15 @@
-# jsonschema-to-pydantic
+# jsonschema-pydantic-converter
 
-[![CI](https://github.com/akshaylive/jsonschema-to-pydantic/workflows/CI/badge.svg)](https://github.com/akshaylive/jsonschema-to-pydantic/actions)
-[![PyPI](https://img.shields.io/pypi/v/jsonschema-to-pydantic.svg)](https://pypi.org/project/jsonschema-to-pydantic/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/jsonschema-to-pydantic.svg)](https://pypi.org/project/jsonschema-to-pydantic/)
+[![CI](https://github.com/akshaylive/jsonschema-pydantic-converter/workflows/CI/badge.svg)](https://github.com/akshaylive/jsonschema-pydantic-converter/actions)
+[![PyPI](https://img.shields.io/pypi/v/jsonschema-pydantic-converter.svg)](https://pypi.org/project/jsonschema-pydantic-converter/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/jsonschema-pydantic-converter.svg)](https://pypi.org/project/jsonschema-pydantic-converter/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 
 ## Overview
 
-`jsonschema-to-pydantic` is a Python library that transforms JSON Schema dictionaries into Pydantic v2 models. This is useful when you need to work with dynamic schemas, validate data against JSON Schema specifications, or bridge JSON Schema-based systems with Pydantic-based applications.
+`jsonschema-pydantic-converter` is a Python library that transforms JSON Schema dictionaries into Pydantic v2 models. This is useful when you need to work with dynamic schemas, validate data against JSON Schema specifications, or bridge JSON Schema-based systems with Pydantic-based applications.
 
 ## Features
 
@@ -29,13 +29,13 @@ Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 ## Installation
 
 ```bash
-pip install jsonschema-to-pydantic
+pip install jsonschema-pydantic-converter
 ```
 
 Or using uv:
 
 ```bash
-uv add jsonschema-to-pydantic
+uv add jsonschema-pydantic-converter
 ```
 
 ## Usage
@@ -43,7 +43,7 @@ uv add jsonschema-to-pydantic
 ### Basic Example
 
 ```python
-from jsonschema_to_pydantic import transform
+from jsonschema_pydantic_converter import transform
 
 # Define a JSON Schema
 schema = {
@@ -173,8 +173,8 @@ obj2 = Model(value=42)
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/akshaylive/jsonschema-to-pydantic.git
-cd jsonschema-to-pydantic
+git clone https://github.com/akshaylive/jsonschema-pydantic-converter.git
+cd jsonschema-pydantic-converter
 ```
 
 ### Install Dependencies
@@ -277,5 +277,5 @@ Akshaya Shanbhogue - [akshay.live@gmail.com](mailto:akshay.live@gmail.com)
 
 ## Links
 
-- [GitHub Repository](https://github.com/akshaylive/jsonschema-to-pydantic)
-- [Issue Tracker](https://github.com/akshaylive/jsonschema-to-pydantic/issues)
+- [GitHub Repository](https://github.com/akshaylive/jsonschema-pydantic-converter)
+- [Issue Tracker](https://github.com/akshaylive/jsonschema-pydantic-converter/issues)
