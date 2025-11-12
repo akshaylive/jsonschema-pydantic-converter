@@ -1,5 +1,10 @@
 # jsonschema-to-pydantic
 
+[![CI](https://github.com/akshaylive/jsonschema-to-pydantic/workflows/CI/badge.svg)](https://github.com/akshaylive/jsonschema-to-pydantic/actions)
+[![PyPI](https://img.shields.io/pypi/v/jsonschema-to-pydantic.svg)](https://pypi.org/project/jsonschema-to-pydantic/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/jsonschema-to-pydantic.svg)](https://pypi.org/project/jsonschema-to-pydantic/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 
 ## Overview
