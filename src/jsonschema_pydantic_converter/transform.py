@@ -1,7 +1,7 @@
 """Json schema to dynamic pydantic model."""
 
 from enum import Enum
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel, Field, create_model
 
@@ -70,11 +70,10 @@ def transform(
                         if "default" in property:
                             field_kwargs["default"] = property["default"]
                         if name not in required_fields:
-                            # Note that we do not make this optional. This is due to a limitation in Pydantic/Python.
-                            # If we convert the Optional type back to json schema, it is represented as type | None.
-                            # pydantic_type = Optional[pydantic_type]
-
                             if "default" not in field_kwargs:
+                                # If default is present, Optional is not needed as instantiation will be successful.
+                                # Otherwise, explicitly treat is as optional with default None.
+                                pydantic_type = Optional[pydantic_type]
                                 field_kwargs["default"] = None
                         if "description" in property:
                             field_kwargs["description"] = property["description"]
