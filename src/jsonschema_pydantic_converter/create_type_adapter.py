@@ -1,25 +1,46 @@
-"""Json schema to dynamic pydantic model."""
+"""Convert JSON Schema definitions to Pydantic TypeAdapters with dynamically generated models.
 
-import inspect
+This module provides functionality to transform JSON Schema dictionaries into Pydantic v2
+models at runtime, wrapped in TypeAdapters for validation and serialization.
+"""
+
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, create_model
-from typing_extensions import deprecated
+from pydantic import Field, TypeAdapter, create_model
 
 
-@deprecated(
-    "Use create_type_adapter instead. Json schemas are better represented as type adapters as BaseModels can only represent 'objects'."
-)
-def transform(
+def create_type_adapter(
     schema: dict[str, Any],
-) -> Type[BaseModel]:
-    """Convert a schema dict to a pydantic model.
+) -> TypeAdapter[Any]:
+    """Convert a JSON Schema dict to a Pydantic TypeAdapter.
+
+    This function dynamically generates Pydantic models from JSON Schema definitions
+    and returns a TypeAdapter that wraps the generated model. The TypeAdapter provides
+    methods for validation and serialization.
 
     Args:
-        schema: JSON schema.
+        schema: JSON schema dictionary following the JSON Schema specification.
+                Supports primitive types, objects, arrays, enums, references ($ref),
+                and schema composition (allOf, anyOf).
 
-    Returns: Pydantic model.
+    Returns:
+        A Pydantic TypeAdapter wrapping the dynamically generated model.
+        Use adapter.validate_python(data) to validate Python objects,
+        adapter.validate_json(json_str) to validate JSON strings, and
+        adapter.dump_python(obj) to serialize validated objects.
+
+    Example:
+        >>> schema = {
+        ...     "type": "object",
+        ...     "properties": {
+        ...         "name": {"type": "string"},
+        ...         "age": {"type": "integer"}
+        ...     },
+        ...     "required": ["name"]
+        ... }
+        >>> adapter = transform(schema)
+        >>> obj = adapter.validate_python({"name": "Alice", "age": 30})
     """
     dynamic_type_counter = 0
     combined_model_counter = 0
@@ -122,7 +143,6 @@ def transform(
         model = convert_type(definition)
         namespace[name.capitalize()] = model
     model = convert_type(schema)
-    if not (inspect.isclass(model) and issubclass(model, BaseModel)):
-        raise ValueError("Unable to convert schema.")
-    model.model_rebuild(force=True, _types_namespace=namespace)
-    return model
+    type_adapter = TypeAdapter(model)
+    type_adapter.rebuild(force=True, _types_namespace=namespace)
+    return type_adapter
