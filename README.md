@@ -14,6 +14,7 @@ Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 ## Features
 
 - **Dynamic Model Generation**: Convert JSON Schema to Pydantic models at runtime
+- **TypeAdapter Support**: Generate TypeAdapters for enhanced validation and serialization
 - **Comprehensive Type Support**:
   - Primitive types (string, number, integer, boolean, null)
   - Arrays with typed items
@@ -40,7 +41,9 @@ uv add jsonschema-pydantic-converter
 
 ## Usage
 
-### Basic Example
+> **Note on Deprecation**: The `transform()` function is deprecated in favor of `create_type_adapter()`. JSON schemas are better represented as TypeAdapters since BaseModels can only represent 'object' types, while TypeAdapters can handle any JSON schema type including primitives, arrays, and unions. Existing code using `transform()` will continue to work, but new code should use `create_type_adapter()`.
+
+### Basic Example (Deprecated - using `transform`)
 
 ```python
 from jsonschema_pydantic_converter import transform
@@ -56,7 +59,7 @@ schema = {
     "required": ["name", "age"]
 }
 
-# Convert to Pydantic model
+# Convert to Pydantic model (deprecated - use create_type_adapter instead)
 UserModel = transform(schema)
 
 # Use the model
@@ -65,9 +68,49 @@ print(user.model_dump())
 # {'name': 'John Doe', 'age': 30, 'email': 'john@example.com'}
 ```
 
+### Using TypeAdapter for Validation
+
+The `create_type_adapter` function returns a Pydantic TypeAdapter, which provides additional validation and serialization capabilities:
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "integer"},
+        "email": {"type": "string"}
+    },
+    "required": ["name", "age"]
+}
+
+# Create TypeAdapter
+adapter = create_type_adapter(schema)
+
+# Validate Python objects
+user = adapter.validate_python({"name": "John Doe", "age": 30, "email": "john@example.com"})
+print(user)
+
+# Validate JSON strings directly
+json_str = '{"name": "Jane Doe", "age": 25}'
+user = adapter.validate_json(json_str)
+
+# Serialize back to Python dict
+user_dict = adapter.dump_python(user)
+print(user_dict)
+# {'name': 'Jane Doe', 'age': 25, 'email': None}
+```
+
+**When to use `transform` vs `create_type_adapter`:**
+- **Recommended**: Use `create_type_adapter()` for all new code - it handles any JSON schema type and provides validation/serialization methods
+- **Deprecated**: `transform()` is maintained for backward compatibility but only works with object schemas. It returns a BaseModel class if you need direct model access
+
 ### Working with Enums
 
 ```python
+from jsonschema_pydantic_converter import create_type_adapter
+
 schema = {
     "type": "object",
     "properties": {
@@ -78,13 +121,15 @@ schema = {
     }
 }
 
-StatusModel = transform(schema)
-obj = StatusModel(status="active")
+adapter = create_type_adapter(schema)
+obj = adapter.validate_python({"status": "active"})
 ```
 
 ### Nested Objects
 
 ```python
+from jsonschema_pydantic_converter import create_type_adapter
+
 schema = {
     "type": "object",
     "properties": {
@@ -99,13 +144,15 @@ schema = {
     }
 }
 
-Model = transform(schema)
-data = Model(user={"name": "Alice", "email": "alice@example.com"})
+adapter = create_type_adapter(schema)
+data = adapter.validate_python({"user": {"name": "Alice", "email": "alice@example.com"}})
 ```
 
 ### Arrays
 
 ```python
+from jsonschema_pydantic_converter import create_type_adapter
+
 schema = {
     "type": "object",
     "properties": {
@@ -116,13 +163,15 @@ schema = {
     }
 }
 
-TagsModel = transform(schema)
-obj = TagsModel(tags=["python", "pydantic", "json-schema"])
+adapter = create_type_adapter(schema)
+obj = adapter.validate_python({"tags": ["python", "pydantic", "json-schema"]})
 ```
 
 ### Schema with References
 
 ```python
+from jsonschema_pydantic_converter import create_type_adapter
+
 schema = {
     "type": "object",
     "properties": {
@@ -139,13 +188,15 @@ schema = {
     }
 }
 
-Model = transform(schema)
-person = Model(person={"name": "Bob", "age": 25})
+adapter = create_type_adapter(schema)
+person = adapter.validate_python({"person": {"name": "Bob", "age": 25}})
 ```
 
 ### Union Types (anyOf)
 
 ```python
+from jsonschema_pydantic_converter import create_type_adapter
+
 schema = {
     "type": "object",
     "properties": {
@@ -158,9 +209,9 @@ schema = {
     }
 }
 
-Model = transform(schema)
-obj1 = Model(value="text")
-obj2 = Model(value=42)
+adapter = create_type_adapter(schema)
+obj1 = adapter.validate_python({"value": "text"})
+obj2 = adapter.validate_python({"value": 42})
 ```
 
 ## Development Setup
