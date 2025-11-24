@@ -412,3 +412,134 @@ def test_allof_with_empty_schema():
     # Should reject non-string (fails first schema)
     with pytest.raises((ValidationError, ValueError)):
         adapter.validate_python(42)
+
+
+def test_oneof_basic():
+    """Test oneOf with different types - treated as Union."""
+    schema = {"oneOf": [{"type": "string"}, {"type": "integer"}]}
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept string
+    assert adapter.validate_python("hello") == "hello"
+
+    # Should accept integer
+    assert adapter.validate_python(42) == 42
+
+    # Note: oneOf exclusivity constraint is not enforced, treated as Union
+
+
+def test_not_keyword():
+    """Test not keyword - validates that value does NOT match schema."""
+    schema = {"not": {"type": "string"}}
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept non-string values
+    assert adapter.validate_python(42) == 42
+    assert adapter.validate_python([1, 2, 3]) == [1, 2, 3]
+    assert adapter.validate_python({"key": "value"}) == {"key": "value"}
+
+    # Should reject string values (matches the "not" schema)
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python("hello")
+
+
+def test_not_with_object():
+    """Test not keyword with object schema."""
+    schema = {
+        "not": {
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+            "required": ["foo"],
+        }
+    }
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept non-objects
+    assert adapter.validate_python(42) == 42
+    assert adapter.validate_python("string") == "string"
+
+    # Should accept objects without required 'foo' field
+    assert adapter.validate_python({"bar": "value"}) == {"bar": "value"}
+
+    # Should reject objects with required 'foo' field
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python({"foo": "value"})
+
+
+def test_const_keyword():
+    """Test const keyword - validates exact value match."""
+    schema = {"type": "object", "properties": {"country": {"const": "United States"}}}
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept exact match
+    result = adapter.validate_python({"country": "United States"})
+    assert result.country == "United States"
+
+    # Should reject different value
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python({"country": "Canada"})
+
+
+def test_const_with_number():
+    """Test const keyword with numeric value."""
+    schema = {"const": 42}
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept exact match
+    assert adapter.validate_python(42) == 42
+
+    # Should reject different value
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python(43)
+
+    # Should reject different type
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python("42")
+
+
+def test_const_with_null():
+    """Test const keyword with null value."""
+    schema = {"const": None}
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept None
+    assert adapter.validate_python(None) is None
+
+    # Should reject non-None values
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python(0)
+
+    with pytest.raises((ValidationError, ValueError)):
+        adapter.validate_python("")
+
+
+def test_if_then_else():
+    """Test if-then-else conditionals - schema accepted but constraints not enforced."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "street_address": {"type": "string"},
+            "country": {"type": "string"},
+        },
+        "if": {"properties": {"country": {"const": "United States"}}},
+        "then": {"properties": {"postal_code": {"type": "string"}}},
+        "else": {"properties": {"postal_code": {"type": "string"}}},
+    }
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept valid data
+    result = adapter.validate_python(
+        {
+            "street_address": "123 Main St",
+            "country": "United States",
+            "postal_code": "12345",
+        }
+    )
+    assert result.country == "United States"

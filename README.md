@@ -17,11 +17,18 @@ Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 - **TypeAdapter Support**: Generate TypeAdapters for enhanced validation and serialization
 - **Comprehensive Type Support**:
   - Primitive types (string, number, integer, boolean, null)
-  - Arrays with typed items
+  - Arrays with typed items and tuples (prefixItems)
   - Nested objects
-  - Enums
-  - Union types (anyOf)
+  - Enums (with and without explicit type)
+  - Union types (anyOf, oneOf)
   - Combined schemas (allOf)
+  - Negation (not)
+  - Constant values (const)
+  - Boolean schemas (true/false)
+- **Validation Constraints**: Full support for Pydantic-native constraints
+  - String: minLength, maxLength, pattern
+  - Numeric: minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf
+  - Array: minItems, maxItems
 - **Schema References**: Support for `$ref` and `$defs`/`definitions`
 - **Field Metadata**: Preserves titles, descriptions, and default values
 - **Self-References**: Handle recursive schema definitions
@@ -214,6 +221,155 @@ obj1 = adapter.validate_python({"value": "text"})
 obj2 = adapter.validate_python({"value": 42})
 ```
 
+### Validation Constraints
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "type": "object",
+    "properties": {
+        "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 20,
+            "pattern": "^[a-z0-9_]+$"
+        },
+        "age": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 150
+        },
+        "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "multipleOf": 0.5
+        }
+    }
+}
+
+adapter = create_type_adapter(schema)
+# Valid data
+obj = adapter.validate_python({
+    "username": "john_doe",
+    "age": 25,
+    "score": 85.5
+})
+
+# Invalid - will raise ValidationError
+# adapter.validate_python({"username": "ab"})  # Too short
+# adapter.validate_python({"age": -1})  # Below minimum
+```
+
+### Constant Values (const)
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "type": "object",
+    "properties": {
+        "country": {"const": "United States"},
+        "version": {"const": 1}
+    }
+}
+
+adapter = create_type_adapter(schema)
+# Valid - exact match
+obj = adapter.validate_python({"country": "United States", "version": 1})
+
+# Invalid - will raise ValidationError
+# adapter.validate_python({"country": "Canada", "version": 1})
+```
+
+### Negation (not)
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "type": "object",
+    "properties": {
+        "value": {"not": {"type": "string"}}
+    }
+}
+
+adapter = create_type_adapter(schema)
+# Valid - not a string
+obj1 = adapter.validate_python({"value": 42})
+obj2 = adapter.validate_python({"value": [1, 2, 3]})
+
+# Invalid - is a string
+# adapter.validate_python({"value": "text"})
+```
+
+### Combined Schemas (allOf)
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "allOf": [
+        {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"]
+        },
+        {
+            "type": "object",
+            "properties": {"age": {"type": "integer"}},
+            "required": ["age"]
+        }
+    ]
+}
+
+adapter = create_type_adapter(schema)
+# Valid - satisfies all schemas
+obj = adapter.validate_python({"name": "Alice", "age": 30})
+
+# Invalid - missing required fields
+# adapter.validate_python({"name": "Alice"})
+```
+
+### Tuples (prefixItems)
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+schema = {
+    "type": "array",
+    "prefixItems": [
+        {"type": "string"},
+        {"type": "integer"},
+        {"type": "boolean"}
+    ]
+}
+
+adapter = create_type_adapter(schema)
+# Valid tuple
+result = adapter.validate_python(["hello", 42, True])
+# Returns: ("hello", 42, True)
+```
+
+### Boolean Schemas
+
+```python
+from jsonschema_pydantic_converter import create_type_adapter
+
+# Schema that accepts anything
+schema_true = True
+adapter_true = create_type_adapter(schema_true)
+adapter_true.validate_python("anything")  # Valid
+adapter_true.validate_python(42)  # Valid
+adapter_true.validate_python([1, 2, 3])  # Valid
+
+# Schema that rejects everything
+schema_false = False
+adapter_false = create_type_adapter(schema_false)
+# adapter_false.validate_python("anything")  # Invalid - raises ValidationError
+```
+
 ## Development Setup
 
 ### Prerequisites
@@ -316,6 +472,12 @@ Contributions are welcome! Here's how you can help:
 ## Limitations
 
 - Optional fields without defaults are set to `None` rather than using `Optional[T]` type annotation to maintain JSON Schema round-trip consistency
+- When `allOf` contains `$ref` references, the generated `json_schema()` output may not preserve the exact original structure (validation still works correctly)
+- Some advanced JSON Schema features are not yet supported:
+  - `$anchor` references (causes syntax errors with forward references)
+  - `$dynamicRef` / `$dynamicAnchor` (draft 2020-12 advanced features)
+  - Full enforcement of: `uniqueItems`, `contains`, `propertyNames`, `patternProperties`, `format` validation
+  - `if-then-else` conditionals (base type is used, but conditionals are not enforced)
 - Complex schema combinations may require testing for edge cases
 
 ## License

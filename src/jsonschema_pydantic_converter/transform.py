@@ -4,7 +4,7 @@ import inspect
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, Union
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing_extensions import deprecated
 
 
@@ -87,7 +87,19 @@ def transform(
 
                         fields[name] = (pydantic_type, Field(**field_kwargs))
 
-                    object_model = create_model(title, **fields)
+                    # Handle additionalProperties
+                    config = None
+                    if "additionalProperties" in prop:
+                        if prop["additionalProperties"] is False:
+                            config = ConfigDict(extra="forbid")
+                        elif prop["additionalProperties"] is True:
+                            config = ConfigDict(extra="allow")
+
+                    if config:
+                        object_model = create_model(title, __config__=config, **fields)
+                    else:
+                        object_model = create_model(title, **fields)
+
                     if "description" in prop:
                         object_model.__doc__ = prop["description"]
                     return object_model
@@ -97,15 +109,123 @@ def transform(
                 return type_mapping.get(type_, Any)
 
         elif "allOf" in prop:
-            combined_fields = {}
-            for sub_schema in prop["allOf"]:
-                model = convert_type(sub_schema)
-                combined_fields.update(model.__annotations__)
-            combined_model = create_model(
-                f"CombinedModel_{combined_model_counter}", **combined_fields
+            # Check if all schemas in allOf are objects (or have properties)
+            has_properties = any("properties" in s for s in prop["allOf"])
+            all_objects = all(
+                s.get("type") == "object"
+                or "properties" in s
+                or "additionalProperties" in s
+                for s in prop["allOf"]
             )
-            combined_model_counter += 1
-            return combined_model
+
+            # If we have object schemas, merge them
+            if has_properties or all_objects:
+                # Merge all properties and required fields from each sub-schema
+                merged_properties: dict[str, Any] = {}
+                merged_required: list[str] = []
+                merged_additional_properties: bool | dict[str, Any] | None = None
+
+                for sub_schema in prop["allOf"]:
+                    # Capture type if specified
+                    if "type" in sub_schema:
+                        if sub_schema["type"] != "object":
+                            raise ValueError(
+                                f"Incompatible types in allOf: expected 'object', got '{sub_schema['type']}'"
+                            )
+
+                    # Handle additionalProperties - most restrictive wins
+                    if "additionalProperties" in sub_schema:
+                        if sub_schema["additionalProperties"] is False:
+                            merged_additional_properties = False
+                        elif merged_additional_properties is None:
+                            merged_additional_properties = sub_schema[
+                                "additionalProperties"
+                            ]
+
+                    # Get properties and required fields from each sub-schema
+                    if "properties" in sub_schema:
+                        for prop_name, prop_schema in sub_schema["properties"].items():
+                            if prop_name in merged_properties:
+                                # Property exists in multiple schemas - validate compatibility
+                                existing = merged_properties[prop_name]
+
+                                # Check type compatibility
+                                existing_type = existing.get("type")
+                                new_type = prop_schema.get("type")
+
+                                if (
+                                    existing_type
+                                    and new_type
+                                    and existing_type != new_type
+                                ):
+                                    raise ValueError(
+                                        f"Incompatible types for property '{prop_name}' in allOf: "
+                                        f"'{existing_type}' vs '{new_type}'"
+                                    )
+
+                                # Merge metadata (prefer values from later schemas if not set)
+                                for key in ["title", "description", "default", "type"]:
+                                    if key in prop_schema and key not in existing:
+                                        existing[key] = prop_schema[key]
+                            else:
+                                merged_properties[prop_name] = prop_schema.copy()
+
+                    if "required" in sub_schema:
+                        merged_required.extend(sub_schema["required"])
+
+                # If no properties were found but all are objects, create empty object
+                if not merged_properties and all_objects:
+                    merged_properties = {}
+
+                # Remove duplicates from required list
+                merged_required = list(set(merged_required))
+
+                # Build the merged schema
+                merged_schema: dict[str, Any] = {
+                    "type": "object",
+                    "properties": merged_properties,
+                }
+                if merged_required:
+                    merged_schema["required"] = merged_required
+
+                # Add additionalProperties if specified
+                if merged_additional_properties is not None:
+                    merged_schema["additionalProperties"] = merged_additional_properties
+
+                # Title for the combined model
+                if "title" in prop:
+                    merged_schema["title"] = prop["title"]
+                else:
+                    merged_schema["title"] = f"CombinedModel_{combined_model_counter}"
+                    combined_model_counter += 1
+
+                # Convert the merged schema to a model
+                return convert_type(merged_schema)
+
+            else:
+                # Non-object schemas: merge constraints and type information
+                # Start with first schema as base
+                merged_schema = prop["allOf"][0].copy() if prop["allOf"] else {}
+
+                # Merge constraints from all schemas
+                for sub_schema in prop["allOf"][1:]:
+                    for key, value in sub_schema.items():
+                        if key == "type":
+                            # Validate type consistency
+                            if (
+                                "type" in merged_schema
+                                and merged_schema["type"] != value
+                            ):
+                                raise ValueError(
+                                    f"Incompatible types in allOf: '{merged_schema['type']}' vs '{value}'"
+                                )
+                            merged_schema["type"] = value
+                        elif key not in merged_schema:
+                            # Add new constraint
+                            merged_schema[key] = value
+
+                # Convert the merged non-object schema
+                return convert_type(merged_schema)
 
         elif "anyOf" in prop:
             unioned_types = tuple(
