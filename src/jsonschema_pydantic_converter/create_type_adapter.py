@@ -5,9 +5,9 @@ models at runtime, wrapped in TypeAdapters for validation and serialization.
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
-from pydantic import Field, TypeAdapter, create_model
+from pydantic import BeforeValidator, Field, TypeAdapter, create_model
 
 
 def create_type_adapter(
@@ -39,11 +39,75 @@ def create_type_adapter(
         ...     },
         ...     "required": ["name"]
         ... }
-        >>> adapter = transform(schema)
+        >>> adapter = create_type_adapter(schema)
         >>> obj = adapter.validate_python({"name": "Alice", "age": 30})
     """
     dynamic_type_counter = 0
     combined_model_counter = 0
+
+    # Build namespace first for reference resolution
+    namespace: dict[str, Any] = {}
+
+    def _create_intersection_type(sub_schemas: list[dict[str, Any]]) -> Any:
+        """Create an Intersection type that validates against all sub-schemas.
+
+        Returns a type that uses BeforeValidator to validate against all schemas.
+
+        Args:
+            sub_schemas: List of JSON schema dicts to validate against
+
+        Returns:
+            An Annotated type with validation for all schemas
+        """
+        nonlocal combined_model_counter
+        schema_defs = schema.get("$defs", schema.get("definitions", {}))
+
+        # Convert each sub-schema to a type using the parent's convert_type
+        converted_types = [convert_type(sub) for sub in sub_schemas]
+
+        def validate_all(value: Any) -> Any:
+            """Validate that the value satisfies all sub-schemas."""
+            # Validate against each converted type
+            # We validate all but return the original value since each model
+            # only contains a subset of fields from the complete allOf
+            for converted_type in converted_types:
+                try:
+                    # Create adapter from the already-converted type and validate
+                    # This reuses types from namespace instead of recursive conversion
+                    adapter = TypeAdapter(converted_type)
+                    # Rebuild with namespace for forward reference resolution
+                    adapter.rebuild(force=True, _types_namespace=namespace)
+                    # Validate - this ensures the value satisfies this schema
+                    adapter.validate_python(value)
+                except Exception as e:
+                    raise ValueError(
+                        f"Value does not satisfy all schemas in allOf: {e}"
+                    ) from e
+
+            # Return the original value - it's been validated against all schemas
+            return value
+
+        # Build the json_schema_extra to return the original allOf structure
+        def json_schema_extra(schema_dict: dict[str, Any]) -> None:
+            """Override the generated schema with the original allOf structure."""
+            schema_dict.clear()
+            schema_dict["allOf"] = sub_schemas
+            if schema_defs:
+                schema_dict["$defs"] = schema_defs
+
+        # Use Any as base type since allOf can return any of the validated types
+        # The validator ensures all schemas are satisfied
+        # Create an Annotated type with the validator and json_schema_extra
+        intersection_type = Annotated[
+            Any,
+            BeforeValidator(validate_all),
+            Field(json_schema_extra=json_schema_extra),
+        ]
+
+        # Increment counter for next intersection type
+        combined_model_counter += 1
+
+        return intersection_type
 
     def convert_type(prop: dict[str, Any]) -> Any:
         nonlocal dynamic_type_counter, combined_model_counter
@@ -118,15 +182,9 @@ def create_type_adapter(
                 return type_mapping.get(type_, Any)
 
         elif "allOf" in prop:
-            combined_fields = {}
-            for sub_schema in prop["allOf"]:
-                model = convert_type(sub_schema)
-                combined_fields.update(model.__annotations__)
-            combined_model = create_model(
-                f"CombinedModel_{combined_model_counter}", **combined_fields
-            )
-            combined_model_counter += 1
-            return combined_model
+            # Use Intersection type for all allOf cases (objects and primitives)
+            # $defs accessed via closure from parent schema
+            return _create_intersection_type(prop["allOf"])
 
         elif "anyOf" in prop:
             unioned_types = tuple(
@@ -138,10 +196,12 @@ def create_type_adapter(
         else:
             raise ValueError(f"Unsupported schema: {prop}")
 
-    namespace: dict[str, Any] = {}
+    # Populate namespace with definitions
     for name, definition in schema.get("$defs", schema.get("definitions", {})).items():
         model = convert_type(definition)
         namespace[name.capitalize()] = model
+
+    # Convert the main schema
     model = convert_type(schema)
     type_adapter = TypeAdapter(model)
     type_adapter.rebuild(force=True, _types_namespace=namespace)
