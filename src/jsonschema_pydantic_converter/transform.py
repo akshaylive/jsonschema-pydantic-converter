@@ -1,5 +1,6 @@
 """Json schema to dynamic pydantic model."""
 
+import inspect
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, Union
 
@@ -117,5 +118,7 @@ def transform(
         model = convert_type(definition)
         namespace[name.capitalize()] = model
     model = convert_type(schema)
+    if not (inspect.isclass(model) and issubclass(model, BaseModel)):
+        raise ValueError("Unable to convert schema.")
     model.model_rebuild(force=True, _types_namespace=namespace)
     return model
