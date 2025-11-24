@@ -43,77 +43,48 @@ def create_type_adapter(
         >>> obj = adapter.validate_python({"name": "Alice", "age": 30})
     """
     dynamic_type_counter = 0
-    combined_model_counter = 0
-
-    # Build namespace first for reference resolution
     namespace: dict[str, Any] = {}
 
     def _create_intersection_type(sub_schemas: list[dict[str, Any]]) -> Any:
-        """Create an Intersection type that validates against all sub-schemas.
-
-        Returns a type that uses BeforeValidator to validate against all schemas.
-
-        Args:
-            sub_schemas: List of JSON schema dicts to validate against
-
-        Returns:
-            An Annotated type with validation for all schemas
-        """
-        nonlocal combined_model_counter
-        schema_defs = schema.get("$defs", schema.get("definitions", {}))
-
-        # Convert each sub-schema to a type using the parent's convert_type
+        """Create an Intersection type that validates against all sub-schemas."""
         converted_types = [convert_type(sub) for sub in sub_schemas]
 
         def validate_all(value: Any) -> Any:
             """Validate that the value satisfies all sub-schemas."""
-            # Validate against each converted type
-            # We validate all but return the original value since each model
-            # only contains a subset of fields from the complete allOf
             for converted_type in converted_types:
                 try:
-                    # Create adapter from the already-converted type and validate
-                    # This reuses types from namespace instead of recursive conversion
                     adapter = TypeAdapter(converted_type)
-                    # Rebuild with namespace for forward reference resolution
                     adapter.rebuild(force=True, _types_namespace=namespace)
-                    # Validate - this ensures the value satisfies this schema
                     adapter.validate_python(value)
                 except Exception as e:
                     raise ValueError(
                         f"Value does not satisfy all schemas in allOf: {e}"
                     ) from e
-
-            # Return the original value - it's been validated against all schemas
             return value
 
-        # Build the json_schema_extra to return the original allOf structure
         def json_schema_extra(schema_dict: dict[str, Any]) -> None:
             """Override the generated schema with the original allOf structure."""
             schema_dict.clear()
             schema_dict["allOf"] = sub_schemas
-            if schema_defs:
-                schema_dict["$defs"] = schema_defs
 
-        # Use Any as base type since allOf can return any of the validated types
-        # The validator ensures all schemas are satisfied
-        # Create an Annotated type with the validator and json_schema_extra
-        intersection_type = Annotated[
+        return Annotated[
             Any,
             BeforeValidator(validate_all),
             Field(json_schema_extra=json_schema_extra),
         ]
 
-        # Increment counter for next intersection type
-        combined_model_counter += 1
-
-        return intersection_type
-
     def convert_type(prop: dict[str, Any]) -> Any:
-        nonlocal dynamic_type_counter, combined_model_counter
+        nonlocal dynamic_type_counter
+
         if "$ref" in prop:
-            # This is the full path. It will be updated in update_forward_refs.
             return prop["$ref"].split("/")[-1].capitalize()
+
+        if "allOf" in prop:
+            return _create_intersection_type(prop["allOf"])
+
+        if "anyOf" in prop:
+            unioned_types = tuple(convert_type(sub) for sub in prop["anyOf"])
+            return Union[unioned_types]
 
         if "type" in prop:
             type_mapping = {
@@ -129,72 +100,63 @@ def create_type_adapter(
             type_ = prop["type"]
 
             if "enum" in prop:
+                base_type: Any = type_mapping.get(type_, Any)
                 dynamic_members = {
                     f"KEY_{i}": value for i, value in enumerate(prop["enum"])
                 }
 
-                base_type: Any = type_mapping.get(type_, Any)
-
                 class DynamicEnum(base_type, Enum):
                     pass
 
-                type_ = DynamicEnum(prop.get("title", "DynamicEnum"), dynamic_members)  # type: ignore[call-arg]
-                return type_
-            elif type_ == "array":
+                return DynamicEnum(prop.get("title", "DynamicEnum"), dynamic_members)  # type: ignore[call-arg]
+
+            if type_ == "array":
                 item_type: Any = convert_type(prop.get("items", {}))
-                return List[item_type]  # noqa F821
-            elif type_ == "object":
-                if "properties" in prop:
-                    if "title" in prop and prop["title"]:
-                        title = prop["title"]
-                    else:
-                        title = f"DynamicType_{dynamic_type_counter}"
-                        dynamic_type_counter += 1
+                return List[item_type]
 
-                    fields: dict[str, Any] = {}
-                    required_fields = prop.get("required", [])
-
-                    for name, property in prop.get("properties", {}).items():
-                        pydantic_type = convert_type(property)
-                        field_kwargs = {}
-                        if "default" in property:
-                            field_kwargs["default"] = property["default"]
-                        if name not in required_fields:
-                            if "default" not in field_kwargs:
-                                # If default is present, Optional is not needed as instantiation will be successful.
-                                # Otherwise, explicitly treat is as optional with default None.
-                                pydantic_type = Optional[pydantic_type]
-                                field_kwargs["default"] = None
-                        if "description" in property:
-                            field_kwargs["description"] = property["description"]
-                        if "title" in property:
-                            field_kwargs["title"] = property["title"]
-
-                        fields[name] = (pydantic_type, Field(**field_kwargs))
-
-                    object_model = create_model(title, **fields)
-                    if "description" in prop:
-                        object_model.__doc__ = prop["description"]
-                    return object_model
-                else:
+            if type_ == "object":
+                if "properties" not in prop:
                     return Dict[str, Any]
-            else:
-                return type_mapping.get(type_, Any)
 
-        elif "allOf" in prop:
-            # Use Intersection type for all allOf cases (objects and primitives)
-            # $defs accessed via closure from parent schema
-            return _create_intersection_type(prop["allOf"])
+                # Generate title for the model
+                if "title" in prop and prop["title"]:
+                    title = prop["title"]
+                else:
+                    title = f"DynamicType_{dynamic_type_counter}"
+                    dynamic_type_counter += 1
 
-        elif "anyOf" in prop:
-            unioned_types = tuple(
-                convert_type(sub_schema) for sub_schema in prop["anyOf"]
-            )
-            return Union[unioned_types]
-        elif prop == {} or "type" not in prop:
+                # Build fields
+                fields: dict[str, Any] = {}
+                required_fields = prop.get("required", [])
+
+                for name, property in prop["properties"].items():
+                    pydantic_type = convert_type(property)
+                    field_kwargs = {}
+
+                    if "default" in property:
+                        field_kwargs["default"] = property["default"]
+                    elif name not in required_fields:
+                        pydantic_type = Optional[pydantic_type]
+                        field_kwargs["default"] = None
+
+                    if "description" in property:
+                        field_kwargs["description"] = property["description"]
+                    if "title" in property:
+                        field_kwargs["title"] = property["title"]
+
+                    fields[name] = (pydantic_type, Field(**field_kwargs))
+
+                object_model = create_model(title, **fields)
+                if "description" in prop:
+                    object_model.__doc__ = prop["description"]
+                return object_model
+
+            return type_mapping.get(type_, Any)
+
+        if not prop or prop == {}:
             return Any
-        else:
-            raise ValueError(f"Unsupported schema: {prop}")
+
+        raise ValueError(f"Unsupported schema: {prop}")
 
     # Populate namespace with definitions
     for name, definition in schema.get("$defs", schema.get("definitions", {})).items():
