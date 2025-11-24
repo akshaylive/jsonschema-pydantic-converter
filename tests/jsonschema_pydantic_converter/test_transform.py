@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
+import pytest
 from pydantic import BaseModel, Field
 
 from jsonschema_pydantic_converter import transform
@@ -104,3 +105,11 @@ def test_dynamic_schema():
 
     # Assert
     assert dynamic_schema_json == schema_json
+
+
+def test_erroneous_model():
+    with pytest.raises(ValueError):
+        transform({})
+
+    with pytest.raises(ValueError):
+        transform({"type": "list"})
