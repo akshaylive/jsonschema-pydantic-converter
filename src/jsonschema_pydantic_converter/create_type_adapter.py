@@ -158,7 +158,21 @@ def create_type_adapter(
         nonlocal dynamic_type_counter
 
         if "$ref" in prop:
-            return prop["$ref"].split("/")[-1].capitalize()
+            # Handle $ref with nested paths like #/$defs/Address/$defs/Country
+            ref = prop["$ref"]
+            if ref.startswith("#/"):
+                # Remove leading #/ and split by /
+                ref_path = ref[2:]
+                # Extract the actual path (skip $defs/definitions keywords)
+                parts = ref_path.split("/")
+                # Filter out $defs and definitions, keep the actual definition names
+                name_parts = [p for p in parts if p not in ("$defs", "definitions")]
+                # Join with underscore and capitalize
+                full_name = "_".join(name_parts).capitalize()
+                return full_name
+            else:
+                # External ref - just use the last part
+                return ref.split("/")[-1].capitalize()
 
         if "allOf" in prop:
             return _create_intersection_type(prop["allOf"])
@@ -459,10 +473,36 @@ def create_type_adapter(
 
         raise ValueError(f"Unsupported schema: {prop}")
 
-    # Populate namespace with definitions
-    for name, definition in schema.get("$defs", schema.get("definitions", {})).items():
+    # Recursively collect all definitions (including nested ones)
+    def collect_definitions(
+        schema_dict: dict[str, Any], path: str = ""
+    ) -> dict[str, dict[str, Any]]:
+        """Recursively collect all $defs/$definitions from schema."""
+        defs: dict[str, dict[str, Any]] = {}
+
+        # Get definitions at current level
+        current_defs = schema_dict.get("$defs", schema_dict.get("definitions", {}))
+
+        for name, definition in current_defs.items():
+            # Build full path for nested definitions
+            full_name = f"{path}/{name}" if path else name
+            defs[full_name] = definition
+
+            # Recursively collect nested definitions
+            if isinstance(definition, dict):
+                nested_defs = collect_definitions(definition, full_name)
+                defs.update(nested_defs)
+
+        return defs
+
+    # Collect all definitions (top-level and nested)
+    all_definitions = collect_definitions(schema)
+
+    # Populate namespace with all definitions
+    for name, definition in all_definitions.items():
         model = convert_type(definition)
-        namespace[name.capitalize()] = model
+        # Use the full path as the key, but capitalize for consistency
+        namespace[name.replace("/", "_").capitalize()] = model
 
     # Convert the main schema
     model = convert_type(schema)
