@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List, Optional
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from jsonschema_pydantic_converter import transform
 
@@ -106,6 +106,25 @@ def test_dynamic_schema():
     # Assert
     assert dynamic_schema_json == schema_json
 
+    # Test that the adapter can validate data
+    test_data = {
+        "string": "test",
+        "integer": 42,
+        "floating": 3.14,
+        "boolean": True,
+        "nested_object": {"self_reference": None},
+        "list_str": ["a", "b"],
+        "list_integer": [1, 2],
+        "list_floating": [1.0, 2.0],
+        "list_boolean": [True, False],
+        "list_nested_object": [],
+        "enum": "VALUE_1",
+    }
+    instance = dynamic_schema(**test_data)
+    assert instance.string == "test"  # type: ignore[attr-defined]
+    assert instance.integer == 42  # type: ignore[attr-defined]
+    assert instance.nested_object.self_reference is None  # type: ignore[attr-defined]
+
 
 def test_erroneous_model():
     with pytest.raises(ValueError):
@@ -144,13 +163,14 @@ def test_allof_merges_properties():
     instance = model(
         combined={"name": "Alice", "age": 30, "email": "alice@example.com"}
     )
-    assert instance.combined.name == "Alice"  # type: ignore[attr-defined]
-    assert instance.combined.age == 30  # type: ignore[attr-defined]
-    assert instance.combined.email == "alice@example.com"  # type: ignore[attr-defined]
+    # allOf fields are validated as dicts, not BaseModel instances
+    assert instance.combined["name"] == "Alice"  # type: ignore[attr-defined]
+    assert instance.combined["age"] == 30  # type: ignore[attr-defined]
+    assert instance.combined["email"] == "alice@example.com"  # type: ignore[attr-defined]
 
 
 def test_allof_type_conflict():
-    """Test that allOf raises error for incompatible types."""
+    """Test that allOf raises error for incompatible types during validation."""
     schema = {
         "type": "object",
         "properties": {
@@ -163,8 +183,12 @@ def test_allof_type_conflict():
         },
     }
 
-    with pytest.raises(ValueError, match="Incompatible types"):
-        transform(schema)
+    # Transform succeeds but validation should fail
+    model = transform(schema)
+
+    # This should fail because x can't be both string and integer
+    with pytest.raises(ValidationError):
+        model(value={"x": "test"})
 
 
 def test_allof_additional_properties_false():
@@ -187,10 +211,10 @@ def test_allof_additional_properties_false():
     model = transform(schema)
     # Valid: only defined property
     instance = model(user={"name": "Bob"})
-    assert instance.user.name == "Bob"  # type: ignore[attr-defined]
+    # allOf fields are validated as dicts, not BaseModel instances
+    assert instance.user["name"] == "Bob"  # type: ignore[attr-defined]
 
     # Invalid: extra property should be rejected
-    from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
         model(user={"name": "Bob", "extra": "field"})
@@ -215,9 +239,10 @@ def test_allof_additional_properties_true():
 
     model = transform(schema)
     instance = model(data={"id": 123, "extra": "allowed", "another": 456})
-    assert instance.data.id == 123  # type: ignore[attr-defined]
-    assert instance.data.extra == "allowed"  # type: ignore[attr-defined]
-    assert instance.data.another == 456  # type: ignore[attr-defined]
+    # allOf fields are validated as dicts, not BaseModel instances
+    assert instance.data["id"] == 123  # type: ignore[attr-defined]
+    assert instance.data["extra"] == "allowed"  # type: ignore[attr-defined]
+    assert instance.data["another"] == 456  # type: ignore[attr-defined]
 
 
 def test_allof_merges_metadata():
@@ -289,7 +314,6 @@ def test_object_with_additional_properties():
     model = transform(schema)
 
     # Strict object rejects extra properties
-    from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
         model(strict={"id": 1, "extra": "no"}, flexible={"id": 2})
@@ -329,11 +353,12 @@ def test_allof_with_title():
 
     model = transform(schema)
     instance = model(item={"id": 42})
-    assert instance.item.id == 42  # type: ignore[attr-defined]
+    # allOf fields are validated as dicts, not BaseModel instances
+    assert instance.item["id"] == 42  # type: ignore[attr-defined]
 
 
 def test_allof_non_object_type_error():
-    """Test that allOf with non-object type raises error."""
+    """Test that allOf with non-object type raises validation error."""
     schema = {
         "type": "object",
         "properties": {
@@ -343,8 +368,11 @@ def test_allof_non_object_type_error():
         },
     }
 
-    with pytest.raises(ValueError, match="Incompatible types in allOf"):
-        transform(schema)
+    # Transform succeeds but validation should fail
+    model = transform(schema)
+    # This should fail because value can't be both string and object
+    with pytest.raises(ValidationError):
+        model(value="test")
 
 
 def test_object_without_properties():

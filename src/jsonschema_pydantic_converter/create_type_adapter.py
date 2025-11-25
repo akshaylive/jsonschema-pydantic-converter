@@ -14,6 +14,7 @@ from ._type_converters import TypeConverter
 
 def create_type_adapter(
     schema: dict[str, Any] | bool,
+    _namespace: dict[str, Any] | None = None,
 ) -> TypeAdapter[Any]:
     """Convert a JSON Schema dict to a Pydantic TypeAdapter.
 
@@ -26,6 +27,10 @@ def create_type_adapter(
                 Supports primitive types, objects, arrays, enums, references ($ref),
                 and schema composition (allOf, anyOf, oneOf, not).
                 Can also be a boolean (true accepts all, false rejects all).
+        _namespace: Optional namespace dict to populate with type definitions.
+                   If provided, this namespace will be populated with all generated
+                   types and used for type resolution. This is primarily for internal
+                   use by the transform() function.
 
     Returns:
         A Pydantic TypeAdapter wrapping the dynamically generated model.
@@ -58,7 +63,8 @@ def create_type_adapter(
             return TypeAdapter(Annotated[Any, BeforeValidator(reject_all)])
 
     # Initialize namespace for type definitions
-    namespace: dict[str, Any] = {}
+    # Use provided namespace or create a new one
+    namespace: dict[str, Any] = _namespace if _namespace is not None else {}
 
     # Collect all definitions (top-level and nested)
     all_definitions = collect_definitions(schema)

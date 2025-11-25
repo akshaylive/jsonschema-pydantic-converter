@@ -1,13 +1,12 @@
 """Json schema to dynamic pydantic model."""
 
 import inspect
-from typing import Any, Type
+from typing import Any, Type, get_args, get_origin
 
 from pydantic import BaseModel
 from typing_extensions import deprecated
 
-from ._schema_utils import collect_definitions
-from ._transform_converter import TransformConverter
+from .create_type_adapter import create_type_adapter
 
 
 @deprecated(
@@ -26,23 +25,20 @@ def transform(
     Raises:
         ValueError: If the schema cannot be converted to a BaseModel (e.g., it's not an object type).
     """
-    # Initialize namespace for type definitions
+    # Create a namespace that will be populated by create_type_adapter
     namespace: dict[str, Any] = {}
 
-    # Collect all definitions (top-level and nested)
-    all_definitions = collect_definitions(schema)
+    # Use create_type_adapter and extract the underlying type
+    type_adapter = create_type_adapter(schema, _namespace=namespace)
+    model = type_adapter._type
 
-    # Create type converter (using specialized version for transform)
-    converter = TransformConverter(namespace)
-
-    # Populate namespace with all definitions
-    for name, definition in all_definitions.items():
-        model = converter.convert(definition)
-        # Use the full path as the key, but capitalize for consistency
-        namespace[name.replace("/", "_").capitalize()] = model
-
-    # Convert the main schema
-    model = converter.convert(schema)
+    # Handle Annotated types - extract the actual type
+    origin = get_origin(model)
+    if origin is not None:
+        # For Annotated[X, ...], get X
+        args = get_args(model)
+        if args:
+            model = args[0]
 
     # Ensure the result is a BaseModel
     if not (inspect.isclass(model) and issubclass(model, BaseModel)):
@@ -52,5 +48,8 @@ def transform(
             "For non-object schemas, use create_type_adapter() instead."
         )
 
-    model.model_rebuild(force=True, _types_namespace=namespace)
+    # Rebuild the model with the namespace so it can resolve forward references
+    # This allows model_json_schema() to work properly with $refs/$defs
+    model.model_rebuild(_types_namespace=namespace)
+
     return model
