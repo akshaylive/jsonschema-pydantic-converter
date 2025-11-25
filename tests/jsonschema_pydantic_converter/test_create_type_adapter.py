@@ -543,3 +543,114 @@ def test_if_then_else():
         }
     )
     assert result.country == "United States"
+
+
+def test_nested_definitions():
+    """Test that nested $defs are properly resolved."""
+    schema = {
+        "type": "object",
+        "properties": {"address": {"$ref": "#/$defs/Address"}},
+        "$defs": {
+            "Address": {
+                "type": "object",
+                "properties": {
+                    "street": {"type": "string"},
+                    "country": {"$ref": "#/$defs/Address/$defs/Country"},
+                },
+                "$defs": {
+                    "Country": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "code": {"type": "string"},
+                        },
+                        "required": ["name"],
+                    }
+                },
+            }
+        },
+    }
+
+    adapter = create_type_adapter(schema)
+
+    # Valid data
+    data = {
+        "address": {"street": "123 Main St", "country": {"name": "USA", "code": "US"}}
+    }
+
+    result = adapter.validate_python(data)
+    dumped = adapter.dump_python(result)
+
+    assert dumped["address"]["street"] == "123 Main St"
+    assert dumped["address"]["country"]["name"] == "USA"
+    assert dumped["address"]["country"]["code"] == "US"
+
+    # Missing required field should fail
+    invalid_data = {
+        "address": {
+            "street": "123 Main St",
+            "country": {
+                "code": "US"  # missing required 'name'
+            },
+        }
+    }
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python(invalid_data)
+
+
+def test_deeply_nested_definitions():
+    """Test definitions nested multiple levels deep."""
+    schema = {
+        "type": "object",
+        "properties": {"org": {"$ref": "#/$defs/Organization"}},
+        "$defs": {
+            "Organization": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "address": {"$ref": "#/$defs/Organization/$defs/Address"},
+                },
+                "$defs": {
+                    "Address": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string"},
+                            "location": {
+                                "$ref": "#/$defs/Organization/$defs/Address/$defs/Coordinates"
+                            },
+                        },
+                        "$defs": {
+                            "Coordinates": {
+                                "type": "object",
+                                "properties": {
+                                    "lat": {"type": "number"},
+                                    "lon": {"type": "number"},
+                                },
+                            }
+                        },
+                    }
+                },
+            }
+        },
+    }
+
+    adapter = create_type_adapter(schema)
+
+    data = {
+        "org": {
+            "name": "Acme Corp",
+            "address": {
+                "city": "San Francisco",
+                "location": {"lat": 37.7749, "lon": -122.4194},
+            },
+        }
+    }
+
+    result = adapter.validate_python(data)
+    dumped = adapter.dump_python(result)
+
+    assert dumped["org"]["name"] == "Acme Corp"
+    assert dumped["org"]["address"]["city"] == "San Francisco"
+    assert dumped["org"]["address"]["location"]["lat"] == 37.7749
+    assert dumped["org"]["address"]["location"]["lon"] == -122.4194
