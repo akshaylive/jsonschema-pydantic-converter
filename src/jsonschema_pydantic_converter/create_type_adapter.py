@@ -3,6 +3,7 @@
 This module provides functionality to transform JSON Schema dictionaries into Pydantic v2
 models at runtime, wrapped in TypeAdapters for validation and serialization.
 """
+
 import re
 from typing import Annotated, Any
 
@@ -76,7 +77,7 @@ def create_type_adapter(
     for name, definition in all_definitions.items():
         model = converter.convert(definition)
         # Sanitize the name to create a valid Python identifier
-        sanitized_name = re.sub(r'[^a-zA-Z0-9_]', '_', name.replace("/", "_"))
+        sanitized_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.replace("/", "_"))
         # Use the sanitized name as the key, capitalized for consistency
         namespace[sanitized_name.capitalize()] = model
 

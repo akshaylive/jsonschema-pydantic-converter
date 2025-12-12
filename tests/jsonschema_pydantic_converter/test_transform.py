@@ -385,15 +385,12 @@ def test_object_without_properties():
     assert instance.data["any"] == "thing"  # type: ignore[attr-defined]
     assert instance.data["goes"] == "here"  # type: ignore[attr-defined]
 
+
 def test_object_with_job_attachment_syntax():
     """Test object with job attachment syntax."""
     schema = {
         "type": "object",
-        "properties": {
-            "file1": {
-                "$ref": "#/definitions/job-attachment"
-            }
-        },
+        "properties": {"file1": {"$ref": "#/definitions/job-attachment"}},
         "title": "Inputs",
         "definitions": {
             "job-attachment": {
@@ -401,30 +398,23 @@ def test_object_with_job_attachment_syntax():
                 "properties": {
                     "ID": {
                         "type": "string",
-                        "description": "Orchestrator attachment key"
+                        "description": "Orchestrator attachment key",
                     },
-                    "FullName": {
-                        "type": "string",
-                        "description": "File name"
-                    },
+                    "FullName": {"type": "string", "description": "File name"},
                     "MimeType": {
                         "type": "string",
-                        "description": "The MIME type of the content, such as \"application/json\" or \"image/png\""
+                        "description": 'The MIME type of the content, such as "application/json" or "image/png"',
                     },
                     "Metadata": {
                         "type": "object",
                         "description": "Dictionary<string, string> of metadata",
-                        "additionalProperties": {
-                            "type": "string"
-                        }
-                    }
+                        "additionalProperties": {"type": "string"},
+                    },
                 },
-                "required": [
-                    "ID"
-                ],
-                "x-uipath-resource-kind": "JobAttachment"
+                "required": ["ID"],
+                "x-uipath-resource-kind": "JobAttachment",
             }
-        }
+        },
     }
 
     model = transform(schema)
@@ -435,7 +425,7 @@ def test_object_with_job_attachment_syntax():
             "ID": "attachment-123",
             "FullName": "document.pdf",
             "MimeType": "application/pdf",
-            "Metadata": {"author": "John Doe", "version": "1.0"}
+            "Metadata": {"author": "John Doe", "version": "1.0"},
         }
     )
     assert instance.file1.ID == "attachment-123"  # type: ignore[attr-defined]
@@ -465,22 +455,18 @@ def test_forward_reference_resolution_with_inheritance():
 
     schema = {
         "type": "object",
-        "properties": {
-            "attachment": {
-                "$ref": "#/definitions/job-attachment"
-            }
-        },
+        "properties": {"attachment": {"$ref": "#/definitions/job-attachment"}},
         "title": "BaseSchema",
         "definitions": {
             "job-attachment": {
                 "type": "object",
                 "properties": {
                     "ID": {"type": "string", "description": "Attachment ID"},
-                    "Name": {"type": "string"}
+                    "Name": {"type": "string"},
                 },
-                "required": ["ID"]
+                "required": ["ID"],
             }
-        }
+        },
     }
 
     # Create the dynamic model
@@ -498,8 +484,7 @@ def test_forward_reference_resolution_with_inheritance():
 
     # Test 3: Instantiate the extended model
     instance = ExtendedModel(
-        attachment={"ID": "attach-123", "Name": "file.pdf"},
-        extra_field="custom"
+        attachment={"ID": "attach-123", "Name": "file.pdf"}, extra_field="custom"
     )
     assert instance.attachment.ID == "attach-123"  # type: ignore[attr-defined]
     assert instance.extra_field == "custom"  # type: ignore[attr-defined]
