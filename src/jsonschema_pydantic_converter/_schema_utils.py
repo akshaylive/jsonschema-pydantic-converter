@@ -1,5 +1,6 @@
 """Utility functions for JSON Schema processing."""
 
+import re
 from typing import Any
 
 
@@ -42,15 +43,23 @@ def resolve_ref_path(ref: str) -> str:
     Returns:
         The namespace key (e.g., "Address_Country").
     """
+
+    def sanitize_name(name: str) -> str:
+        """Convert a name to a valid Python identifier."""
+        # Replace hyphens and other non-alphanumeric characters with underscores
+        return re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
     if ref.startswith("#/"):
         # Remove leading #/ and split by /
         ref_path = ref[2:]
         # Extract the actual path (skip $defs/definitions keywords)
         parts = ref_path.split("/")
         # Filter out $defs and definitions, keep the actual definition names
-        name_parts = [p for p in parts if p not in ("$defs", "definitions")]
+        name_parts = [
+            sanitize_name(p) for p in parts if p not in ("$defs", "definitions")
+        ]
         # Join with underscore and capitalize
         return "_".join(name_parts).capitalize()
     else:
         # External ref - just use the last part
-        return ref.split("/")[-1].capitalize()
+        return sanitize_name(ref.split("/")[-1]).capitalize()

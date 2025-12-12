@@ -1,6 +1,7 @@
 """Json schema to dynamic pydantic model."""
 
 import inspect
+import sys
 from typing import Any, Type, get_args, get_origin
 
 from pydantic import BaseModel
@@ -51,5 +52,12 @@ def transform(
     # Rebuild the model with the namespace so it can resolve forward references
     # This allows model_json_schema() to work properly with $refs/$defs
     model.model_rebuild(_types_namespace=namespace)
+
+    # Inject dynamically created types into the model's module globals
+    # This ensures that forward references can be resolved by get_type_hints()
+    # and when the model is used as a base class (e.g., in LangGraph)
+    model_module = sys.modules[model.__module__]
+    for type_name, type_def in namespace.items():
+        setattr(model_module, type_name, type_def)
 
     return model
