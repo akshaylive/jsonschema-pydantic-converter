@@ -384,3 +384,127 @@ def test_object_without_properties():
     # Object without properties becomes Dict[str, Any]
     assert instance.data["any"] == "thing"  # type: ignore[attr-defined]
     assert instance.data["goes"] == "here"  # type: ignore[attr-defined]
+
+def test_object_with_job_attachment_syntax():
+    """Test object with job attachment syntax."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "file1": {
+                "$ref": "#/definitions/job-attachment"
+            }
+        },
+        "title": "Inputs",
+        "definitions": {
+            "job-attachment": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "string",
+                        "description": "Orchestrator attachment key"
+                    },
+                    "FullName": {
+                        "type": "string",
+                        "description": "File name"
+                    },
+                    "MimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the content, such as \"application/json\" or \"image/png\""
+                    },
+                    "Metadata": {
+                        "type": "object",
+                        "description": "Dictionary<string, string> of metadata",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "ID"
+                ],
+                "x-uipath-resource-kind": "JobAttachment"
+            }
+        }
+    }
+
+    model = transform(schema)
+
+    # Test valid instance with all fields
+    instance = model(
+        file1={
+            "ID": "attachment-123",
+            "FullName": "document.pdf",
+            "MimeType": "application/pdf",
+            "Metadata": {"author": "John Doe", "version": "1.0"}
+        }
+    )
+    assert instance.file1.ID == "attachment-123"  # type: ignore[attr-defined]
+    assert instance.file1.FullName == "document.pdf"  # type: ignore[attr-defined]
+    assert instance.file1.MimeType == "application/pdf"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata["author"] == "John Doe"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata["version"] == "1.0"  # type: ignore[attr-defined]
+
+    # Test with only required field (ID)
+    instance2 = model(file1={"ID": "attachment-456"})
+    assert instance2.file1.ID == "attachment-456"  # type: ignore[attr-defined]
+    assert instance2.file1.FullName is None  # type: ignore[attr-defined]
+
+    # Test that missing required field (ID) raises validation error
+    with pytest.raises(ValidationError):
+        model(file1={"FullName": "test.txt"})
+
+
+def test_forward_reference_resolution_with_inheritance():
+    """Test that forward references can be resolved when model is used as base class.
+
+    This reproduces the issue where external libraries (like LangGraph) or Python's
+    get_type_hints() cannot resolve forward references because the dynamically created
+    types are not available in the model's module globals.
+    """
+    from typing import get_type_hints
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "attachment": {
+                "$ref": "#/definitions/job-attachment"
+            }
+        },
+        "title": "BaseSchema",
+        "definitions": {
+            "job-attachment": {
+                "type": "object",
+                "properties": {
+                    "ID": {"type": "string", "description": "Attachment ID"},
+                    "Name": {"type": "string"}
+                },
+                "required": ["ID"]
+            }
+        }
+    }
+
+    # Create the dynamic model
+    DynamicModel = transform(schema)
+
+    # Test 1: get_type_hints should work (this is what LangGraph does internally)
+    # This will fail if forward references aren't properly resolved
+    hints = get_type_hints(DynamicModel)
+    assert "attachment" in hints
+
+    # Test 2: Use the model as a base class (common pattern in LangGraph)
+    # This requires forward references to be resolvable
+    class ExtendedModel(DynamicModel):
+        extra_field: str = "test"
+
+    # Test 3: Instantiate the extended model
+    instance = ExtendedModel(
+        attachment={"ID": "attach-123", "Name": "file.pdf"},
+        extra_field="custom"
+    )
+    assert instance.attachment.ID == "attach-123"  # type: ignore[attr-defined]
+    assert instance.extra_field == "custom"  # type: ignore[attr-defined]
+
+    # Test 4: get_type_hints on the extended model should also work
+    extended_hints = get_type_hints(ExtendedModel)
+    assert "attachment" in extended_hints
+    assert "extra_field" in extended_hints
