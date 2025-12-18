@@ -384,3 +384,61 @@ def test_object_without_properties():
     # Object without properties becomes Dict[str, Any]
     assert instance.data["any"] == "thing"  # type: ignore[attr-defined]
     assert instance.data["goes"] == "here"  # type: ignore[attr-defined]
+
+
+def test_object_with_job_attachment_syntax():
+    """Test object with job attachment syntax."""
+    schema = {
+        "type": "object",
+        "properties": {"file1": {"$ref": "#/definitions/job-attachment"}},
+        "title": "Inputs",
+        "definitions": {
+            "job-attachment": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "string",
+                        "description": "Orchestrator attachment key",
+                    },
+                    "FullName": {"type": "string", "description": "File name"},
+                    "MimeType": {
+                        "type": "string",
+                        "description": 'The MIME type of the content, such as "application/json" or "image/png"',
+                    },
+                    "Metadata": {
+                        "type": "object",
+                        "description": "Dictionary<string, string> of metadata",
+                        "additionalProperties": {"type": "string"},
+                    },
+                },
+                "required": ["ID"],
+                "x-uipath-resource-kind": "JobAttachment",
+            }
+        },
+    }
+
+    model = transform(schema)
+
+    # Test valid instance with all fields
+    instance = model(
+        file1={
+            "ID": "attachment-123",
+            "FullName": "document.pdf",
+            "MimeType": "application/pdf",
+            "Metadata": {"author": "John Doe", "version": "1.0"},
+        }
+    )
+    assert instance.file1.ID == "attachment-123"  # type: ignore[attr-defined]
+    assert instance.file1.FullName == "document.pdf"  # type: ignore[attr-defined]
+    assert instance.file1.MimeType == "application/pdf"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata["author"] == "John Doe"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata["version"] == "1.0"  # type: ignore[attr-defined]
+
+    # Test with only required field (ID)
+    instance2 = model(file1={"ID": "attachment-456"})
+    assert instance2.file1.ID == "attachment-456"  # type: ignore[attr-defined]
+    assert instance2.file1.FullName is None  # type: ignore[attr-defined]
+
+    # Test that missing required field (ID) raises validation error
+    with pytest.raises(ValidationError):
+        model(file1={"FullName": "test.txt"})
