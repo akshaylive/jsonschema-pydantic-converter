@@ -35,10 +35,10 @@ def transform(
         >>> Model = transform(schema)
         >>> instance = Model(name="Alice", age=30)
     """
-    return transform_with_model(schema)[0]
+    return transform_with_modules(schema)[0]
 
 
-def transform_with_model(
+def transform_with_modules(
     schema: dict[str, Any],
 ) -> Tuple[type[BaseModel], dict[str, Any]]:
     """Convert a JSON schema dict to a Pydantic model with its namespace.
