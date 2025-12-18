@@ -13,11 +13,14 @@ from .create_type_adapter import create_type_adapter
 # This allows get_type_hints() to resolve forward references
 _DYNAMIC_MODULE_NAME = "jsonschema_pydantic_converter._dynamic"
 
+
 def _get_or_create_dynamic_module() -> ModuleType:
     """Get or create the shared pseudo-module for dynamic types."""
     if _DYNAMIC_MODULE_NAME not in sys.modules:
         pseudo_module = ModuleType(_DYNAMIC_MODULE_NAME)
-        pseudo_module.__doc__ = "Shared module for dynamically generated Pydantic models from JSON schemas"
+        pseudo_module.__doc__ = (
+            "Shared module for dynamically generated Pydantic models from JSON schemas"
+        )
         sys.modules[_DYNAMIC_MODULE_NAME] = pseudo_module
     return sys.modules[_DYNAMIC_MODULE_NAME]
 
@@ -73,14 +76,16 @@ def transform(
         if origin is not None:
             for arg in get_args(annotation):
                 collect_types(arg)
-        
+
         elif inspect.isclass(annotation) and issubclass(annotation, BaseModel):
             # Find the original name for this type from the namespace
             for type_name, type_def in namespace.items():
                 # Match by class name since rebuild may create new instances
-                if (hasattr(annotation, '__name__') and
-                    hasattr(type_def, '__name__') and
-                    annotation.__name__ == type_def.__name__):
+                if (
+                    hasattr(annotation, "__name__")
+                    and hasattr(type_def, "__name__")
+                    and annotation.__name__ == type_def.__name__
+                ):
                     # Store the actual annotation type, not the old namespace one
                     corrected_namespace[type_name] = annotation
                     break
