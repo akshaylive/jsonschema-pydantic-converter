@@ -6,7 +6,6 @@ from types import ModuleType
 from typing import Any, Type, get_args, get_origin
 
 from pydantic import BaseModel
-from typing_extensions import deprecated
 
 from .create_type_adapter import create_type_adapter
 
