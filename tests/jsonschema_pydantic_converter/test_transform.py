@@ -444,15 +444,13 @@ def test_object_with_job_attachment_syntax():
         model(file1={"FullName": "test.txt"})
 
 
-def test_forward_reference_resolution_with_inheritance():
-    """Test that forward references can be resolved when model is used as base class.
+@pytest.fixture
+def dynamic_model_with_ref():
+    """Fixture providing a dynamic model with forward references for testing.
 
-    This reproduces the issue where external libraries (like LangGraph) or Python's
-    get_type_hints() cannot resolve forward references because the dynamically created
-    types are not available in the model's module globals.
+    This model is used to test forward reference resolution when the model is used
+    with external libraries (like LangGraph) or as a base class.
     """
-    from typing import get_type_hints
-
     schema = {
         "type": "object",
         "properties": {"attachment": {"$ref": "#/definitions/job-attachment"}},
@@ -468,28 +466,57 @@ def test_forward_reference_resolution_with_inheritance():
             }
         },
     }
+    return transform(schema)
 
-    # Create the dynamic model
-    DynamicModel = transform(schema)
 
-    # Test 1: get_type_hints should work (this is what LangGraph does internally)
-    # This will fail if forward references aren't properly resolved
-    hints = get_type_hints(DynamicModel)
+def test_forward_reference_get_type_hints(dynamic_model_with_ref):
+    """Test that get_type_hints works on dynamically created models.
+
+    This is what LangGraph and other libraries do internally to inspect model types.
+    Forward references must be properly resolved for this to work.
+    """
+    from typing import get_type_hints
+
+    hints = get_type_hints(dynamic_model_with_ref)
     assert "attachment" in hints
 
-    # Test 2: Use the model as a base class (common pattern in LangGraph)
-    # This requires forward references to be resolvable
-    class ExtendedModel(DynamicModel):
+
+def test_forward_reference_model_as_base_class(dynamic_model_with_ref):
+    """Test that the dynamic model can be used as a base class.
+
+    This is a common pattern in LangGraph and requires forward references to be resolvable.
+    """
+
+    class ExtendedModel(dynamic_model_with_ref):
         extra_field: str = "test"
 
-    # Test 3: Instantiate the extended model
+    # Should be able to create the extended class without errors
+    assert issubclass(ExtendedModel, dynamic_model_with_ref)
+
+
+def test_forward_reference_extended_model_instantiation(dynamic_model_with_ref):
+    """Test that an extended model can be instantiated with data."""
+
+    class ExtendedModel(dynamic_model_with_ref):
+        extra_field: str = "test"
+
     instance = ExtendedModel(
         attachment={"ID": "attach-123", "Name": "file.pdf"}, extra_field="custom"
     )
     assert instance.attachment.ID == "attach-123"  # type: ignore[attr-defined]
-    assert instance.extra_field == "custom"  # type: ignore[attr-defined]
+    assert instance.extra_field == "custom"
 
-    # Test 4: get_type_hints on the extended model should also work
+
+def test_forward_reference_extended_model_type_hints(dynamic_model_with_ref):
+    """Test that get_type_hints works on extended models.
+
+    The extended model should have type hints from both the base and the extension.
+    """
+    from typing import get_type_hints
+
+    class ExtendedModel(dynamic_model_with_ref):
+        extra_field: str = "test"
+
     extended_hints = get_type_hints(ExtendedModel)
     assert "attachment" in extended_hints
     assert "extra_field" in extended_hints
