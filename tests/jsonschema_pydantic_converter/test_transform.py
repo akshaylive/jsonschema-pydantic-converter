@@ -442,5 +442,3 @@ def test_object_with_job_attachment_syntax():
     # Test that missing required field (ID) raises validation error
     with pytest.raises(ValidationError):
         model(file1={"FullName": "test.txt"})
-
-
