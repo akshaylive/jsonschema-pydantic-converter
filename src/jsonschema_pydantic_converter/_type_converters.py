@@ -37,7 +37,10 @@ class TypeConverter:
         """
         # Handle $ref
         if "$ref" in prop:
-            return resolve_ref_path(prop["$ref"])
+            type_name = resolve_ref_path(prop["$ref"])
+            if type_name in self.namespace:
+                return self.namespace[type_name]
+            return type_name  # assume it will be resolved later
 
         # Handle allOf
         if "allOf" in prop:
