@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import ForwardRef, List, Optional, get_type_hints
 
 import pytest
 from pydantic import BaseModel, Field, ValidationError
@@ -442,3 +442,98 @@ def test_object_with_job_attachment_syntax():
     # Test that missing required field (ID) raises validation error
     with pytest.raises(ValidationError):
         model(file1={"FullName": "test.txt"})
+
+
+def test_forward_ref_resolution_with_defs():
+    """Test that schemas with $defs have resolved type annotations, not forward refs."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "user": {"$ref": "#/$defs/User"},
+            "company": {"$ref": "#/$defs/Company"},
+        },
+        "required": ["user"],
+        "$defs": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                    "company": {"$ref": "#/$defs/Company"},
+                },
+                "required": ["name"],
+            },
+            "Company": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "employees": {"type": "array", "items": {"$ref": "#/$defs/User"}},
+                },
+                "required": ["name"],
+            },
+        },
+    }
+
+    model = transform(schema)
+
+    type_hints = get_type_hints(model)
+    for field_name, field_type in type_hints.items():
+        assert not isinstance(field_type, ForwardRef), (
+            f"Field '{field_name}' has unresolved ForwardRef: {field_type}"
+        )
+        assert not isinstance(field_type, str), (
+            f"Field '{field_name}' has string annotation: {field_type}"
+        )
+
+
+def test_hyphenated_definition_names_resolution():
+    """Test that forward references work correctly with hyphenated definition names."""
+    schema = {
+        "type": "object",
+        "properties": {"attachment": {"$ref": "#/$defs/job-attachment"}},
+        "$defs": {
+            "job-attachment": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"},
+                    "related": {"$ref": "#/$defs/related-item"},
+                },
+                "required": ["id"],
+            },
+            "related-item": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string"},
+                    "reference": {"$ref": "#/$defs/job-attachment"},
+                },
+            },
+        },
+    }
+
+    # Transform the schema
+    model = transform(schema)
+
+    # Get the type hints - should be fully resolved
+    type_hints = get_type_hints(model)
+
+    # Check that no forward references remain
+    for field_name, field_type in type_hints.items():
+        assert not isinstance(field_type, ForwardRef), (
+            f"Field '{field_name}' has unresolved ForwardRef: {field_type}"
+        )
+        assert not isinstance(field_type, str), (
+            f"Field '{field_name}' has string annotation: {field_type}"
+        )
+
+    # Test instantiation works
+    instance = model(
+        attachment={
+            "id": "att-123",
+            "name": "document.pdf",
+            "related": {"type": "reference", "reference": {"id": "att-456"}},
+        }
+    )
+
+    assert instance.attachment.id == "att-123"  # type: ignore[attr-defined]
+    assert instance.attachment.related.type == "reference"  # type: ignore[attr-defined]
