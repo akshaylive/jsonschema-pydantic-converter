@@ -26,11 +26,12 @@ class TypeConverter:
         self.namespace = namespace
         self.dynamic_type_counter = 0
 
-    def convert(self, prop: dict[str, Any]) -> Any:
+    def convert(self, prop: dict[str, Any], name: str | None = None) -> Any:
         """Convert a JSON Schema property to a Pydantic type.
 
         Args:
             prop: The JSON Schema property definition.
+            name: Optional name for object types
 
         Returns:
             A Pydantic type or model.
@@ -77,7 +78,7 @@ class TypeConverter:
 
         # Handle typed schemas
         if "type" in prop:
-            return self._convert_typed(prop)
+            return self._convert_typed(prop, name)
 
         # Empty schema or constraint-only schema
         if not prop or prop == {}:
@@ -142,11 +143,12 @@ class TypeConverter:
 
         return DynamicEnum(enum_name, dynamic_members)  # type: ignore[call-arg]
 
-    def _convert_typed(self, prop: dict[str, Any]) -> Any:
+    def _convert_typed(self, prop: dict[str, Any], name: str | None = None) -> Any:
         """Convert a schema with explicit type field.
 
         Args:
             prop: The schema with a "type" field.
+            name: Optional name for object types
 
         Returns:
             The converted Pydantic type.
@@ -183,7 +185,7 @@ class TypeConverter:
 
         # Handle objects
         if type_ == "object":
-            return self._convert_object(prop)
+            return self._convert_object(prop, name)
 
         return type_mapping.get(type_, Any)
 
@@ -250,7 +252,7 @@ class TypeConverter:
             return Annotated[base_type, Field(**constraints)]
         return base_type
 
-    def _convert_object(self, prop: dict[str, Any]) -> Any:
+    def _convert_object(self, prop: dict[str, Any], name: str | None = None) -> Any:
         """Convert an object schema."""
         if "properties" not in prop:
             # Handle additionalProperties for empty objects
@@ -264,7 +266,9 @@ class TypeConverter:
             return Dict[str, Any]
 
         # Generate title for the model
-        if "title" in prop and prop["title"]:
+        if name is not None:
+            title = name
+        elif "title" in prop and prop["title"]:
             title = prop["title"]
         else:
             title = f"DynamicType_{self.dynamic_type_counter}"

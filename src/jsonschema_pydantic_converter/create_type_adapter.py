@@ -75,10 +75,9 @@ def create_type_adapter(
 
     # Populate namespace with all definitions
     for name, definition in all_definitions.items():
-        model = converter.convert(definition)
-        # Sanitize the name to create a valid Python identifier
         sanitized_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.replace("/", "_"))
         # Use the sanitized name as the key, capitalized for consistency
+        model = converter.convert(definition, sanitized_name)
         namespace[sanitized_name.capitalize()] = model
 
     # Convert the main schema
