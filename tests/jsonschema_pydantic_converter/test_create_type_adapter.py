@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, ValidationError
 from jsonschema_pydantic_converter import create_type_adapter
 
 
-def test_dynamic_schema():
+def test_dynamic_schema(normalize_schema):
     # Arrange
     class InnerSchema(BaseModel):
         """Inner schema description including a self-reference."""
@@ -104,7 +104,9 @@ def test_dynamic_schema():
     dynamic_schema_json = dynamic_schema.json_schema()
 
     # Assert
-    assert dynamic_schema_json == schema_json
+    # Normalize both schemas to account for additionalProperties being made explicit
+    normalized_original = normalize_schema(schema_json)
+    assert dynamic_schema_json == normalized_original
 
 
 def test_primitives_models():

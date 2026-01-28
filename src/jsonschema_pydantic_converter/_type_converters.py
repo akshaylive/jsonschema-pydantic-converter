@@ -295,6 +295,9 @@ class TypeConverter:
                 config = ConfigDict(extra="forbid")
             elif prop["additionalProperties"] is True:
                 config = ConfigDict(extra="allow")
+        else:
+            # Default is to allow additional properties
+            config = ConfigDict(extra="allow")
 
         if config:
             object_model = create_model(title, __config__=config, **fields)
