@@ -272,6 +272,25 @@ def test_constraint_only_schema_object_additional_properties():
     assert result == {"name": "Alice"}
 
 
+def test_object_without_additional_properties_key():
+    """Test that object without additionalProperties key allows additional properties by default."""
+    schema = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+    }
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept object with only defined properties
+    result = adapter.validate_python({"name": "Alice"})
+    assert result.name == "Alice"
+
+    # Should accept object with additional properties (default behavior)
+    result_with_extra = adapter.validate_python({"name": "Bob", "age": 30})
+    assert result_with_extra.name == "Bob"
+    assert result_with_extra.age == 30
+
+
 def test_empty_schema():
     """Test completely empty schema."""
     adapter = create_type_adapter({})
