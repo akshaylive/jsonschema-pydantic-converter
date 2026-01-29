@@ -59,7 +59,7 @@ def resolve_ref_path(ref: str) -> str:
             sanitize_name(p) for p in parts if p not in ("$defs", "definitions")
         ]
         # Join with underscore and capitalize
-        return "_".join(name_parts).capitalize()
+        return "__" + "_".join(name_parts).capitalize()
     else:
         # External ref - just use the last part
-        return sanitize_name(ref.split("/")[-1]).capitalize()
+        return "__" + sanitize_name(ref.split("/")[-1]).capitalize()
