@@ -371,5 +371,65 @@ def test_enum_with_type_integer():
         adapter.validate_python(4)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_schema_with_definitions_and_rooted_ref():
+    """Test schema with definitions and reference to a definition."""
+    schema = {
+        "definitions": {
+            "root": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                },
+            }
+        },
+        "properties": {
+            "Root": {
+                "$ref": "#/definitions/root",
+            }
+        },
+        "type": "object",
+    }
+
+    res = create_type_adapter(schema)
+
+    # Should accept valid object with Root property
+    result = res.validate_python({"Root": {"name": "Alice", "age": 30}})
+    assert result.Root.name == "Alice"
+    assert result.Root.age == 30
+
+    # Should reject invalid types
+    with pytest.raises(ValidationError):
+        res.validate_python({"Root": {"name": "Bob", "age": "not_an_int"}})
+
+
+def test_schema_with_definitions_and_ref():
+    """Test schema with definitions and reference to a definition."""
+    schema = {
+        "definitions": {
+            "root": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                },
+            }
+        },
+        "properties": {
+            "Root": {
+                "$ref": "root",
+            }
+        },
+        "type": "object",
+    }
+
+    res = create_type_adapter(schema)
+
+    # Should accept valid object with Root property
+    result = res.validate_python({"Root": {"name": "Alice", "age": 30}})
+    assert result.Root.name == "Alice"
+    assert result.Root.age == 30
+
+    # Should reject invalid types
+    with pytest.raises(ValidationError):
+        res.validate_python({"Root": {"name": "Bob", "age": "not_an_int"}})

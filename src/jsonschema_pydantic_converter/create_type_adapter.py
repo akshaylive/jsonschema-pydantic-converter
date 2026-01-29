@@ -79,7 +79,7 @@ def create_type_adapter(
         # Sanitize the name to create a valid Python identifier
         sanitized_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.replace("/", "_"))
         # Use the sanitized name as the key, capitalized for consistency
-        namespace[sanitized_name.capitalize()] = model
+        namespace["__" + sanitized_name.capitalize()] = model
 
     # Convert the main schema
     model = converter.convert(schema)
