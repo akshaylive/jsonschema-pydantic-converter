@@ -1,5 +1,6 @@
 """Type conversion logic for JSON Schema to Pydantic types."""
 
+import math
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
@@ -232,14 +233,20 @@ class TypeConverter:
         """Convert a numeric schema with constraints."""
         constraints = {}
 
+        def floor_if_int(value: Any) -> Any:
+            return math.floor(value) if base_type is int else value
+
+        def ceil_if_int(value: Any) -> Any:
+            return math.ceil(value) if base_type is int else value
+
         if "minimum" in prop:
-            constraints["ge"] = prop["minimum"]
+            constraints["ge"] = ceil_if_int(prop["minimum"])
         if "maximum" in prop:
-            constraints["le"] = prop["maximum"]
+            constraints["le"] = floor_if_int(prop["maximum"])
         if "exclusiveMinimum" in prop:
-            constraints["gt"] = prop["exclusiveMinimum"]
+            constraints["gt"] = floor_if_int(prop["exclusiveMinimum"])
         if "exclusiveMaximum" in prop:
-            constraints["lt"] = prop["exclusiveMaximum"]
+            constraints["lt"] = ceil_if_int(prop["exclusiveMaximum"])
         if "multipleOf" in prop:
             constraints["multiple_of"] = prop["multipleOf"]
 

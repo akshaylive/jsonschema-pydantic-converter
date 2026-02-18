@@ -433,3 +433,99 @@ def test_schema_with_definitions_and_ref():
     # Should reject invalid types
     with pytest.raises(ValidationError):
         res.validate_python({"Root": {"name": "Bob", "age": "not_an_int"}})
+
+
+def test_extreme_numeric_constraints_integer():
+    """Test that extreme numeric constraint values are clamped for integer types."""
+    schema = {
+        "type": "integer",
+        "minimum": -7.922816251426434e28,  # Extreme value that exceeds sys.maxsize
+        "maximum": 7.922816251426434e28,  # Extreme value that exceeds sys.maxsize
+    }
+
+    # Should not raise ValueError about coercing to integer
+    adapter = create_type_adapter(schema)
+
+    # Should accept values within reasonable range
+    result = adapter.validate_python(100)
+    assert result == 100
+
+
+def test_constraints_with_positive_floats():
+    """Test minimum (ceil) and maximum (floor) with positive float constraints."""
+    schema = {
+        "type": "integer",
+        "minimum": 3.5,  # >= 4
+        "maximum": 9.9,  # <= 9
+    }
+    adapter = create_type_adapter(schema)
+
+    # Valid: within [4, 9]
+    assert adapter.validate_python(4) == 4
+    assert adapter.validate_python(9) == 9
+
+    # Invalid: outside boundaries
+    with pytest.raises(ValidationError):
+        adapter.validate_python(3)
+    with pytest.raises(ValidationError):
+        adapter.validate_python(10)
+
+
+def test_constraints_with_negative_floats():
+    """Test minimum (ceil) and maximum (floor) with negative float constraints."""
+    schema = {
+        "type": "integer",
+        "minimum": -9.7,  # >= -9
+        "maximum": -3.2,  # <= -4
+    }
+    adapter = create_type_adapter(schema)
+
+    # Valid: within [-9, -4]
+    assert adapter.validate_python(-9) == -9
+    assert adapter.validate_python(-4) == -4
+
+    # Invalid: outside boundaries
+    with pytest.raises(ValidationError):
+        adapter.validate_python(-10)
+    with pytest.raises(ValidationError):
+        adapter.validate_python(-3)
+
+
+def test_exclusive_constraints_positive_floats():
+    """Test exclusiveMinimum (floor) and exclusiveMaximum (ceil) with positive floats."""
+    schema = {
+        "type": "integer",
+        "exclusiveMinimum": 3.5,  # > 3
+        "exclusiveMaximum": 9.5,  # < 10
+    }
+    adapter = create_type_adapter(schema)
+
+    # Valid: within (3, 10) exclusive, i.e., [4, 9]
+    assert adapter.validate_python(4) == 4
+    assert adapter.validate_python(9) == 9
+
+    # Invalid: at or outside boundaries
+    with pytest.raises(ValidationError):
+        adapter.validate_python(3)
+    with pytest.raises(ValidationError):
+        adapter.validate_python(10)
+
+
+def test_exclusive_constraints_negative_floats():
+    """Test exclusiveMinimum (floor) and exclusiveMaximum (ceil) with negative floats."""
+    schema = {
+        "type": "integer",
+        "exclusiveMinimum": -9.5,  # > -10
+        "exclusiveMaximum": -3.5,  # < -3
+    }
+    adapter = create_type_adapter(schema)
+
+    # Valid: within (-10, -3) exclusive, i.e., [-9, -4]
+    assert adapter.validate_python(-9) == -9
+    assert adapter.validate_python(-4) == -4
+
+    # Invalid: at or outside boundaries
+    with pytest.raises(ValidationError):
+        adapter.validate_python(-10)
+    with pytest.raises(ValidationError):
+        adapter.validate_python(-3)
