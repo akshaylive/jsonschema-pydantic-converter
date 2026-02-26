@@ -444,3 +444,54 @@ def test_object_with_job_attachment_syntax():
     # Test that missing required field (ID) raises validation error
     with pytest.raises(ValidationError):
         model(file1={"FullName": "test.txt"})
+
+
+def test_array_schema_with_inline_object_items():
+    """Test that an array schema with inline object items produces a valid RootModel."""
+    schema = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name"],
+        },
+    }
+
+    model = transform(schema)
+
+    instance = model.model_validate([{"name": "Alice", "age": 30}, {"name": "Bob"}])
+    dumped = instance.model_dump()
+    assert dumped == [{"name": "Alice", "age": 30}, {"name": "Bob", "age": None}]
+
+    with pytest.raises(ValidationError):
+        model.model_validate([{"age": 30}])
+
+
+def test_array_schema_with_ref_items():
+    """Test that an array schema with $ref items produces a valid RootModel."""
+    schema = {
+        "type": "array",
+        "items": {"$ref": "#/$defs/User"},
+        "$defs": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "email": {"type": "string"},
+                },
+                "required": ["name", "email"],
+            }
+        },
+    }
+
+    model = transform(schema)
+
+    instance = model.model_validate([{"name": "Alice", "email": "alice@test.com"}])
+    dumped = instance.model_dump()
+    assert dumped == [{"name": "Alice", "email": "alice@test.com"}]
+
+    with pytest.raises(ValidationError):
+        model.model_validate([{"name": "Alice"}])

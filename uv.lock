@@ -147,7 +147,7 @@ wheels = [
 
 [[package]]
 name = "jsonschema-pydantic-converter"
-version = "0.1.9"
+version = "0.1.10"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
