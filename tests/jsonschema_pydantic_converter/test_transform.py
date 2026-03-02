@@ -130,10 +130,7 @@ def test_dynamic_schema(normalize_schema):
 
 def test_erroneous_model():
     with pytest.raises(ValueError):
-        transform({})
-
-    with pytest.raises(ValueError):
-        transform({"type": "list"})
+        transform({"type": "banana", "properties": {"color": {"type": "string"}}})
 
 
 def test_allof_merges_properties():

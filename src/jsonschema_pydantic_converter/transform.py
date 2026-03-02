@@ -6,8 +6,6 @@ from pydantic import BaseModel, RootModel
 
 from .create_type_adapter import create_type_adapter
 
-_VALID_TYPES = {"object", "string", "integer", "number", "boolean", "array", "null"}
-
 
 def transform(
     schema: dict[str, Any],
@@ -83,15 +81,11 @@ def transform_with_modules(
     type_adapter = create_type_adapter(schema, _namespace=namespace)
     inner_type = type_adapter._type
 
-    if schema.get("type") == "object" or "properties" in schema:
+    model: type[BaseModel]
+    if isinstance(inner_type, type) and issubclass(inner_type, BaseModel):
         model = inner_type
-    elif schema.get("type") in _VALID_TYPES:
-        model = RootModel.__class_getitem__(inner_type)
     else:
-        raise ValueError(
-            "Unable to convert schema to BaseModel. "
-            "The schema must have a valid 'type' or 'properties' field."
-        )
+        model = RootModel.__class_getitem__(inner_type)  # type: ignore[assignment]
 
     model.model_rebuild(_types_namespace=namespace)
 

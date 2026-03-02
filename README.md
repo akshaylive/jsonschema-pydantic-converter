@@ -48,9 +48,7 @@ uv add jsonschema-pydantic-converter
 
 ## Usage
 
-> **Note on Deprecation**: The `transform()` function is deprecated in favor of `create_type_adapter()`. JSON schemas are better represented as TypeAdapters since BaseModels can only represent 'object' types, while TypeAdapters can handle any JSON schema type including primitives, arrays, and unions. Existing code using `transform()` will continue to work, but new code should use `create_type_adapter()`.
-
-### Basic Example (Deprecated - using `transform`)
+### Basic Example (using `transform`)
 
 ```python
 from jsonschema_pydantic_converter import transform
@@ -66,7 +64,7 @@ schema = {
     "required": ["name", "age"]
 }
 
-# Convert to Pydantic model (deprecated - use create_type_adapter instead)
+# Convert to Pydantic model
 UserModel = transform(schema)
 
 # Use the model
@@ -110,8 +108,8 @@ print(user_dict)
 ```
 
 **When to use `transform` vs `create_type_adapter`:**
-- **Recommended**: Use `create_type_adapter()` for all new code - it handles any JSON schema type and provides validation/serialization methods
-- **Deprecated**: `transform()` is maintained for backward compatibility but only works with object schemas. It returns a BaseModel class if you need direct model access
+- `create_type_adapter()` is recommended for all new code - it handles any JSON schema type and provides validation/serialization methods
+- Use `transform()` when you need compatibility with codebases expecting `BaseModel`. For non-object schemas, it will return a `RootModel`.
 
 ### Working with Enums
 
