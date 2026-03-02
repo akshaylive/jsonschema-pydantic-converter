@@ -14,7 +14,7 @@ def transform(
 
     Args:
         schema: JSON schema dictionary following the JSON Schema specification.
-                Must represent an object type.
+                Non-object types are converted into `RootModel`.
 
     Returns:
         A Pydantic BaseModel class generated from the schema.
@@ -48,7 +48,7 @@ def transform_with_modules(
 
     Args:
         schema: JSON schema dictionary following the JSON Schema specification.
-                Must represent an object type.
+                Non-object types are converted into `RootModel`.
 
     Returns:
         A tuple containing:
