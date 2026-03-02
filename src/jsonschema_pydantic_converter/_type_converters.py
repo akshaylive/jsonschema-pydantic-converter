@@ -183,7 +183,10 @@ class TypeConverter:
         if type_ == "object":
             return self._convert_object(prop)
 
-        return type_mapping.get(type_, Any)
+        if type_ not in type_mapping:
+            raise ValueError(f"Unknown JSON Schema type: {type_!r}")
+
+        return type_mapping[type_]
 
     def _convert_array(self, prop: dict[str, Any]) -> Any:
         """Convert an array schema."""

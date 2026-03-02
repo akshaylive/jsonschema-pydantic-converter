@@ -1,9 +1,8 @@
 """Json schema to dynamic pydantic model."""
 
-import inspect
-from typing import Any, Tuple, Type, get_args, get_origin
+from typing import Any, Tuple, Type
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 from .create_type_adapter import create_type_adapter
 
@@ -15,7 +14,7 @@ def transform(
 
     Args:
         schema: JSON schema dictionary following the JSON Schema specification.
-                Must represent an object type.
+                Non-object types are converted into `RootModel`.
 
     Returns:
         A Pydantic BaseModel class generated from the schema.
@@ -49,7 +48,7 @@ def transform_with_modules(
 
     Args:
         schema: JSON schema dictionary following the JSON Schema specification.
-                Must represent an object type.
+                Non-object types are converted into `RootModel`.
 
     Returns:
         A tuple containing:
@@ -79,27 +78,15 @@ def transform_with_modules(
     # Create a namespace that will be populated by create_type_adapter
     namespace: dict[str, Any] = {}
 
-    # Use create_type_adapter and extract the underlying type
     type_adapter = create_type_adapter(schema, _namespace=namespace)
-    model = type_adapter._type
+    inner_type = type_adapter._type
 
-    # Handle Annotated types - extract the actual type
-    origin = get_origin(model)
-    if origin is not None:
-        # For Annotated[X, ...], get X
-        args = get_args(model)
-        if args:
-            model = args[0]
+    model: type[BaseModel]
+    if isinstance(inner_type, type) and issubclass(inner_type, BaseModel):
+        model = inner_type
+    else:
+        model = RootModel.__class_getitem__(inner_type)  # type: ignore[assignment]
 
-    # Ensure the result is a BaseModel
-    if not (inspect.isclass(model) and issubclass(model, BaseModel)):
-        raise ValueError(
-            "Unable to convert schema to BaseModel. "
-            "The schema must represent an object type. "
-            "For non-object schemas, use create_type_adapter() instead."
-        )
-
-    # Rebuild the model with the namespace so it can resolve forward references
-    # This allows model_json_schema() to work properly with $refs/$defs
     model.model_rebuild(_types_namespace=namespace)
+
     return (model, namespace)
