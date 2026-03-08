@@ -32,6 +32,7 @@ Convert JSON Schema definitions to Pydantic models dynamically at runtime.
 - **Schema References**: Support for `$ref` and `$defs`/`definitions`
 - **Field Metadata**: Preserves titles, descriptions, and default values
 - **Self-References**: Handle recursive schema definitions
+- **Reserved Property Names**: Automatically handles properties that would conflict with Pydantic (e.g., `_hidden`, `schema`, `copy`, `validate`, `model_fields`) by renaming them internally and using aliases to preserve original JSON names
 - **Pydantic v2 Compatible**: Built for Pydantic 2.0+
 
 ## Installation
@@ -367,6 +368,44 @@ schema_false = False
 adapter_false = create_type_adapter(schema_false)
 # adapter_false.validate_python("anything")  # Invalid - raises ValidationError
 ```
+
+### Reserved Property Names
+
+Properties that start with underscores or shadow Pydantic `BaseModel` attributes (like `schema`, `copy`, `validate`) are automatically renamed to safe Python identifiers, with aliases preserving the original JSON names:
+
+```python
+from jsonschema_pydantic_converter import transform
+
+schema = {
+    "type": "object",
+    "properties": {
+        "_file": {"type": "string"},
+        "schema": {"type": "string"},
+        "name": {"type": "string"},
+    },
+    "required": ["_file", "schema", "name"],
+}
+
+Model = transform(schema)
+
+# Validate using original JSON property names
+instance = Model.model_validate({"_file": "a.txt", "schema": "v1", "name": "test"})
+
+# model_dump() outputs original names by default
+print(instance.model_dump())
+# {'_file': 'a.txt', 'schema': 'v1', 'name': 'test'}
+
+# model_json_schema() also uses original names
+print(Model.model_json_schema()["properties"].keys())
+# dict_keys(['_file', 'schema', 'name'])
+
+# Internal Python field names are accessible too
+print(instance.file)     # 'a.txt'   (leading _ stripped)
+print(instance.schema_)  # 'v1'      (trailing _ added to avoid collision)
+print(instance.name)     # 'test'    (unchanged)
+```
+
+> **Note (Pydantic <2.11):** The `serialize_by_alias` config option was introduced in Pydantic 2.11. On older versions, `model_dump()` returns internal field names by default. Use `instance.model_dump(by_alias=True)` explicitly to get the original JSON property names. A runtime warning is emitted at import time when running on Pydantic <2.11.
 
 ## Development Setup
 

@@ -1,11 +1,14 @@
 """Type conversion logic for JSON Schema to Pydantic types."""
 
 import math
+import warnings
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
+from pydantic import VERSION as _PYDANTIC_VERSION
 from pydantic import ConfigDict, Field, create_model
 
+from ._property_renaming import rename_properties
 from ._schema_utils import resolve_ref_path
 from ._validators import (
     create_const_validator,
@@ -13,6 +16,16 @@ from ._validators import (
     create_intersection_validator,
     create_not_validator,
 )
+
+_pydantic_version_tuple = tuple(int(x) for x in _PYDANTIC_VERSION.split(".")[:2])
+if _pydantic_version_tuple < (2, 11):
+    warnings.warn(
+        "jsonschema-pydantic-converter: pydantic <2.11 does not honour "
+        "serialize_by_alias in ConfigDict. Use "
+        "instance.model_dump(by_alias=True) to get original JSON property "
+        "names in serialized output.",
+        stacklevel=2,
+    )
 
 
 class TypeConverter:
@@ -266,7 +279,7 @@ class TypeConverter:
                     # Empty object with no additional properties
                     return create_model(
                         f"DynamicType_{self.dynamic_type_counter}",
-                        __config__=ConfigDict(extra="forbid"),
+                        __config__=ConfigDict(extra="forbid", serialize_by_alias=True),
                     )
             return Dict[str, Any]
 
@@ -277,42 +290,48 @@ class TypeConverter:
             title = f"DynamicType_{self.dynamic_type_counter}"
             self.dynamic_type_counter += 1
 
+        # Rename reserved / underscore-prefixed property names inline
+        raw_required = prop.get("required", [])
+        field_map, required_fields = rename_properties(prop["properties"], raw_required)
+
         # Build fields
         fields: dict[str, Any] = {}
-        required_fields = prop.get("required", [])
+        for original_name, property in prop["properties"].items():
+            safe_name, alias = field_map[original_name]
+            pydantic_type = (
+                self.convert(property) if isinstance(property, dict) else Any
+            )
+            field_kwargs: dict[str, Any] = {}
 
-        for name, property in prop["properties"].items():
-            pydantic_type = self.convert(property)
-            field_kwargs = {}
-
-            if "default" in property:
+            if isinstance(property, dict) and "default" in property:
                 field_kwargs["default"] = property["default"]
-            elif name not in required_fields:
+            elif safe_name not in required_fields:
                 pydantic_type = Optional[pydantic_type]
                 field_kwargs["default"] = None
 
-            if "description" in property:
-                field_kwargs["description"] = property["description"]
-            if "title" in property:
-                field_kwargs["title"] = property["title"]
+            if isinstance(property, dict):
+                if "description" in property:
+                    field_kwargs["description"] = property["description"]
+                if "title" in property:
+                    field_kwargs["title"] = property["title"]
 
-            fields[name] = (pydantic_type, Field(**field_kwargs))
+            field_kwargs["alias"] = alias
 
-        # Handle additionalProperties
-        config = None
+            fields[safe_name] = (pydantic_type, Field(**field_kwargs))
+
+        # Build ConfigDict
+        config = ConfigDict(serialize_by_alias=True)
+
         if "additionalProperties" in prop:
             if prop["additionalProperties"] is False:
-                config = ConfigDict(extra="forbid")
+                config["extra"] = "forbid"
             elif prop["additionalProperties"] is True:
-                config = ConfigDict(extra="allow")
+                config["extra"] = "allow"
         else:
             # Default is to allow additional properties
-            config = ConfigDict(extra="allow")
+            config["extra"] = "allow"
 
-        if config:
-            object_model = create_model(title, __config__=config, **fields)
-        else:
-            object_model = create_model(title, **fields)
+        object_model = create_model(title, __config__=config, **fields)
 
         if "description" in prop:
             object_model.__doc__ = prop["description"]
