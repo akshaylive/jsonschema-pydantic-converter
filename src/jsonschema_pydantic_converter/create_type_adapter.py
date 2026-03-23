@@ -7,7 +7,7 @@ models at runtime, wrapped in TypeAdapters for validation and serialization.
 import re
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, TypeAdapter
+from pydantic import BaseModel, BeforeValidator, TypeAdapter
 
 from ._schema_utils import collect_definitions
 from ._type_converters import TypeConverter
@@ -80,6 +80,14 @@ def create_type_adapter(
         sanitized_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.replace("/", "_"))
         # Use the sanitized name as the key, capitalized for consistency
         namespace["__" + sanitized_name.capitalize()] = model
+
+    # Rebuild all models in the namespace so cross-def forward refs are resolved.
+    # Without this, a def that references another def remains incomplete
+    # (__pydantic_complete__ == False), which breaks consumers that copy field
+    # annotations into a new create_model in a different module.
+    for value in namespace.values():
+        if isinstance(value, type) and issubclass(value, BaseModel):
+            value.model_rebuild(force=True, _types_namespace=namespace)
 
     # Convert the main schema
     model = converter.convert(schema)
