@@ -656,3 +656,48 @@ def test_deeply_nested_definitions():
     assert dumped["org"]["address"]["city"] == "San Francisco"
     assert dumped["org"]["address"]["location"]["lat"] == 37.7749
     assert dumped["org"]["address"]["location"]["lon"] == -122.4194
+
+
+def test_cross_def_models_are_complete():
+    """Defs that reference other defs must produce pydantic-complete models.
+
+    When a def references another def via $ref, the intermediate model must be
+    fully resolved (no unresolved ForwardRefs). Otherwise consumers that copy
+    field annotations into a new create_model in a different module (e.g.
+    langchain) trigger auto-rebuild which fails because the forward refs
+    can't be found in the new module's namespace.
+    """
+    schema = {
+        "type": "object",
+        "properties": {"a": {"$ref": "#/$defs/A"}},
+        "$defs": {
+            "A": {
+                "type": "object",
+                "properties": {"b": {"$ref": "#/$defs/B"}},
+            },
+            "B": {
+                "type": "object",
+                "properties": {"c": {"$ref": "#/$defs/C"}},
+            },
+            "C": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+            },
+        },
+    }
+
+    namespace: dict[str, type] = {}
+    adapter = create_type_adapter(schema, _namespace=namespace)
+
+    # Validation works end-to-end
+    data = {"a": {"b": {"c": {"name": "deep"}}}}
+    result = adapter.validate_python(data)
+    dumped = adapter.dump_python(result)
+    assert dumped["a"]["b"]["c"]["name"] == "deep"
+
+    # Every model in the namespace must be pydantic-complete
+    for key in ("__A", "__B", "__C"):
+        model = namespace[key]
+        assert model.__pydantic_complete__, (  # type: ignore[attr-defined]
+            f"Model {key} has unresolved forward refs"
+        )

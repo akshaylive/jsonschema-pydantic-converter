@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List, Optional
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from jsonschema_pydantic_converter import transform
 
@@ -492,3 +492,41 @@ def test_array_schema_with_ref_items():
 
     with pytest.raises(ValidationError):
         model.model_validate([{"name": "Alice"}])
+
+
+def test_cross_def_models_are_complete():
+    """Defs that reference other defs must produce pydantic-complete models.
+
+    When a def references another def via $ref, the intermediate model must be
+    fully resolved (no unresolved ForwardRefs). Otherwise consumers that copy
+    field annotations into a new create_model in a different module (e.g.
+    langchain) trigger auto-rebuild which fails because the forward refs
+    can't be found in the new module's namespace.
+    """
+    schema = {
+        "type": "object",
+        "properties": {"body": {"$ref": "#/$defs/Parent"}},
+        "$defs": {
+            "Parent": {
+                "type": "object",
+                "properties": {"child": {"$ref": "#/$defs/Child"}},
+            },
+            "Child": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+            },
+        },
+    }
+
+    model = transform(schema)
+
+    # Simulate what langchain does: copy a field annotation into a new model
+    body_field = model.model_fields["body"]
+    CopiedModel = create_model(  # noqa: N806
+        "CopiedModel",
+        body=(body_field.annotation, body_field),
+    )
+
+    # This triggers schema generation on CopiedModel, which traverses into
+    # the Parent model. If Parent is incomplete, auto-rebuild will fail.
+    CopiedModel.model_json_schema()
