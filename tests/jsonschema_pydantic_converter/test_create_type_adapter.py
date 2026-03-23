@@ -120,6 +120,8 @@ def test_primitives_models():
     }
     assert create_type_adapter({"type": "null"}).json_schema() == {"type": "null"}
     assert create_type_adapter({"type": "object"}).json_schema() == {
+        "title": "DynamicType_0",
+        "properties": {},
         "additionalProperties": True,
         "type": "object",
     }

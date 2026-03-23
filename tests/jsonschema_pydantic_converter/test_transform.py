@@ -381,8 +381,8 @@ def test_object_without_properties():
     model = transform(schema)
     instance = model(data={"any": "thing", "goes": "here"})
     # Object without properties becomes Dict[str, Any]
-    assert instance.data["any"] == "thing"  # type: ignore[attr-defined]
-    assert instance.data["goes"] == "here"  # type: ignore[attr-defined]
+    assert instance.data.any == "thing"  # type: ignore[attr-defined]
+    assert instance.data.goes == "here"  # type: ignore[attr-defined]
 
 
 def test_object_with_job_attachment_syntax():
@@ -430,8 +430,8 @@ def test_object_with_job_attachment_syntax():
     assert instance.file1.ID == "attachment-123"  # type: ignore[attr-defined]
     assert instance.file1.FullName == "document.pdf"  # type: ignore[attr-defined]
     assert instance.file1.MimeType == "application/pdf"  # type: ignore[attr-defined]
-    assert instance.file1.Metadata["author"] == "John Doe"  # type: ignore[attr-defined]
-    assert instance.file1.Metadata["version"] == "1.0"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata.author == "John Doe"  # type: ignore[attr-defined]
+    assert instance.file1.Metadata.version == "1.0"  # type: ignore[attr-defined]
 
     # Test with only required field (ID)
     instance2 = model(file1={"ID": "attachment-456"})

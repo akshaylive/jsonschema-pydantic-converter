@@ -272,17 +272,6 @@ class TypeConverter:
 
     def _convert_object(self, prop: dict[str, Any]) -> Any:
         """Convert an object schema."""
-        if "properties" not in prop:
-            # Handle additionalProperties for empty objects
-            if "additionalProperties" in prop:
-                if prop["additionalProperties"] is False:
-                    # Empty object with no additional properties
-                    return create_model(
-                        f"DynamicType_{self.dynamic_type_counter}",
-                        __config__=ConfigDict(extra="forbid", serialize_by_alias=True),
-                    )
-            return Dict[str, Any]
-
         # Generate title for the model
         if "title" in prop and prop["title"]:
             title = prop["title"]
@@ -292,11 +281,12 @@ class TypeConverter:
 
         # Rename reserved / underscore-prefixed property names inline
         raw_required = prop.get("required", [])
-        field_map, required_fields = rename_properties(prop["properties"], raw_required)
+        properties = prop.get("properties", {})
+        field_map, required_fields = rename_properties(properties, raw_required)
 
         # Build fields
         fields: dict[str, Any] = {}
-        for original_name, property in prop["properties"].items():
+        for original_name, property in properties.items():
             safe_name, alias = field_map[original_name]
             pydantic_type = (
                 self.convert(property) if isinstance(property, dict) else Any
@@ -325,13 +315,27 @@ class TypeConverter:
         if "additionalProperties" in prop:
             if prop["additionalProperties"] is False:
                 config["extra"] = "forbid"
-            elif prop["additionalProperties"] is True:
+            else:
                 config["extra"] = "allow"
         else:
             # Default is to allow additional properties
             config["extra"] = "allow"
 
-        object_model = create_model(title, __config__=config, **fields)
+        additional_properties_type: Any = Any
+        if "additionalProperties" in prop and isinstance(
+            prop["additionalProperties"], dict
+        ):
+            additional_properties_type = self.convert(prop["additionalProperties"])
+
+        object_model = create_model(
+            title,
+            __config__=config,
+            __pydantic_extra__=(
+                dict[str, additional_properties_type],
+                Field(init=False),
+            ),
+            **fields,
+        )
 
         if "description" in prop:
             object_model.__doc__ = prop["description"]
