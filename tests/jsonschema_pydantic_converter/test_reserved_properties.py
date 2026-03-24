@@ -297,7 +297,7 @@ class TestNestedSchemas:
         Model, ns = transform_with_modules(schema)
         instance = Model.model_validate({"inner": {"schema": "val"}})
 
-        inner_dump = instance.inner.model_dump()  # type: ignore[union-attr]
+        inner_dump = instance.inner.model_dump()  # type: ignore[attr-defined]
         assert inner_dump["schema"] == "val"
 
         # JSON schema shows original name
@@ -344,7 +344,7 @@ class TestNestedSchemas:
         }
         Model = transform(schema)
         instance = Model.model_validate({"ref": {"_value": 10}})
-        assert instance.ref.model_dump()["_value"] == 10  # type: ignore[union-attr]
+        assert instance.ref.model_dump()["_value"] == 10  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -364,8 +364,8 @@ class TestCreateTypeAdapterIntegration:
         }
         adapter = create_type_adapter(schema)
         obj = adapter.validate_python({"_hidden": "secret", "copy": 42})
-        assert obj.hidden == "secret"  # type: ignore[union-attr]
-        assert obj.copy_ == 42  # type: ignore[union-attr]
+        assert obj.hidden == "secret"
+        assert obj.copy_ == 42
 
     def test_adapter_does_not_mutate_input(self):
         schema = {

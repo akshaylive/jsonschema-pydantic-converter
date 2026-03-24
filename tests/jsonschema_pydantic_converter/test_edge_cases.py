@@ -338,7 +338,7 @@ def test_object_without_properties():
 
     # Should accept any object (Dict[str, Any])
     result = adapter.validate_python({"any": "value", "another": 42})
-    assert result == {"any": "value", "another": 42}
+    assert result.model_dump() == {"any": "value", "another": 42}
 
 
 def test_enum_with_type_string():
@@ -529,3 +529,23 @@ def test_exclusive_constraints_negative_floats():
         adapter.validate_python(-10)
     with pytest.raises(ValidationError):
         adapter.validate_python(-3)
+
+
+def test_additional_properties_with_schema_type_validation():
+    """Test that additionalProperties schema validates extra properties correctly."""
+    schema = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "additionalProperties": {"type": "string"},
+    }
+
+    adapter = create_type_adapter(schema)
+
+    # Should accept object with valid additional properties (strings)
+    result = adapter.validate_python({"name": "Alice", "nickname": "Al"})
+    assert result.name == "Alice"
+    assert result.nickname == "Al"
+
+    # Should reject object where additional property is not a string
+    with pytest.raises(ValidationError):
+        adapter.validate_python({"name": "Bob", "age": 30})
