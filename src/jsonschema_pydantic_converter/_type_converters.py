@@ -39,6 +39,7 @@ class TypeConverter:
         """
         self.namespace = namespace
         self.dynamic_type_counter = 0
+        self.generated_models: list[Any] = []
 
     def convert(self, prop: dict[str, Any]) -> Any:
         """Convert a JSON Schema property to a Pydantic type.
@@ -340,6 +341,9 @@ class TypeConverter:
         if "description" in prop:
             object_model.__doc__ = prop["description"]
 
+        # Track every generated model -- including anonymous ones, which are not
+        # reachable via $defs -- so they can be rebuilt once the namespace is complete.
+        self.generated_models.append(object_model)
         return object_model
 
     def _infer_from_constraints(self, prop: dict[str, Any]) -> Any:
