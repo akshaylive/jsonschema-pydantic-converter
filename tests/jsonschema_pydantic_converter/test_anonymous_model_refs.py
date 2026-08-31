@@ -50,6 +50,9 @@ def test_anonymous_model_with_ref_is_complete():
     assert model.__pydantic_complete__
     # the regression: the nested anonymous model was left holding ForwardRef('__Project')
     assert _nested(model, "fields").__pydantic_complete__
+
+    # does not raise: cloning copies raw annotations into another module,
+    # which fails if any nested model still holds an unresolved ForwardRef
     _clone(model)
 
 
@@ -72,6 +75,9 @@ def test_anonymous_model_with_ref_is_complete_after_json_schema_roundtrip():
     second = transform(rt)
     assert second.__pydantic_complete__
     assert _nested(second, "fields").__pydantic_complete__
+
+    # does not raise: cloning copies raw annotations into another module,
+    # which fails if any nested model still holds an unresolved ForwardRef
     _clone(second)
 
 
