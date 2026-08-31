@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import VERSION as _PYDANTIC_VERSION
-from pydantic import ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from ._property_renaming import rename_properties
 from ._schema_utils import resolve_ref_path
@@ -39,7 +39,7 @@ class TypeConverter:
         """
         self.namespace = namespace
         self.dynamic_type_counter = 0
-        self.generated_models: list[Any] = []
+        self.generated_models: list[type[BaseModel]] = []
 
     def convert(self, prop: dict[str, Any]) -> Any:
         """Convert a JSON Schema property to a Pydantic type.
