@@ -91,6 +91,15 @@ def create_type_adapter(
 
     # Convert the main schema
     model = converter.convert(schema)
+
+    # Rebuild every generated model against the completed namespace. The loop above
+    # only covers models reachable from $defs; anonymous models -- created for objects
+    # written inline, either here or nested inside a $def -- are not in the namespace
+    # and would otherwise keep their $refs as unresolved forward references, leaving
+    # the nested model incomplete while the root reports complete.
+    for generated in converter.generated_models:
+        generated.model_rebuild(force=True, _types_namespace=namespace)
+
     type_adapter = TypeAdapter(model)
     type_adapter.rebuild(force=True, _types_namespace=namespace)
     return type_adapter
